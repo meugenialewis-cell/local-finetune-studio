@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useGetSystemStatus } from "@workspace/api-client-react";
 import { Terminal, Apple, HardDrive, CheckCircle2, AlertTriangle, Settings2 } from "lucide-react";
 
 export default function Settings() {
   const { data: status, isLoading } = useGetSystemStatus();
+  const [copied, setCopied] = useState(false);
 
   return (
     <div className="p-8 max-w-4xl mx-auto w-full">
@@ -87,9 +89,16 @@ export default function Settings() {
               You are currently running in simulation mode. To perform real fine-tuning on your Mac, you need to install the MLX training dependencies. Open your terminal and run the following command:
             </p>
             <div className="bg-background/50 border border-border rounded-lg p-4 font-mono text-sm text-foreground overflow-x-auto relative group">
-              <code>pip install mlx mlx-lm && python -m mlx_lm.setup</code>
-              <button className="absolute top-2 right-2 p-2 bg-card rounded-md border border-border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent text-xs">
-                Copy
+              <code>pip install mlx-lm huggingface_hub</code>
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText("pip install mlx-lm huggingface_hub");
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                }}
+                className="absolute top-2 right-2 p-2 bg-card rounded-md border border-border opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent text-xs"
+              >
+                {copied ? "Copied!" : "Copy"}
               </button>
             </div>
             <p className="text-xs text-muted-foreground mt-4">

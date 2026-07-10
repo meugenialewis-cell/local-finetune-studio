@@ -36,7 +36,13 @@ export function simulateTraining(job: JobState) {
   let loss = 2.4;
 
   const prepareTimeout = setTimeout(() => {
-    if (job.cancelRequested) return;
+    if (job.cancelRequested) {
+      job.status = "cancelled";
+      job.statusMessage = "Training was cancelled";
+      pushJobLog(job, "Training cancelled by user");
+      emitJobUpdate(job);
+      return;
+    }
     job.status = "training";
     job.statusMessage = `Training epoch 1 of ${totalEpochs}`;
     pushJobLog(job, `Started training (simulated), ${totalEpochs} epoch(s) planned`);
