@@ -1,0 +1,1 @@
+- [Express dotfile storage dirs](express-dotfile-storage.md) — never store files served via res.download/sendFile under a dot-prefixed dir like `.data`; Express's `send` blocks dotfile path segments (404).

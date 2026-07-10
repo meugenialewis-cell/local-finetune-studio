@@ -1,0 +1,10 @@
+# Install these on your Mac (not in this cloud workspace) to enable real
+# local fine-tuning with Apple's MLX framework:
+#
+#   pip install mlx-lm huggingface_hub
+#
+# mlx-lm only installs on Apple Silicon Macs (macOS + M-series chip).
+# These scripts fall back to a simulation mode automatically when mlx-lm
+# is not available, so the app remains fully usable for prototyping here.
+mlx-lm
+huggingface_hub

@@ -10,6 +10,14 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: models
+    description: Base model catalog and downloads
+  - name: datasets
+    description: Dataset upload and preview
+  - name: training
+    description: Fine-tuning job configuration, execution and export
+  - name: system
+    description: Local environment/readiness checks
 paths:
   /healthz:
     get:
@@ -24,7 +32,355 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /system/status:
+    get:
+      operationId: getSystemStatus
+      tags: [system]
+      summary: Local environment readiness
+      description: Reports whether this server is running on Apple Silicon with MLX available, and disk space info. Used to warn the user when they are not running the app on their own Mac yet.
+      responses:
+        "200":
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemStatus"
+
+  /models:
+    get:
+      operationId: listModels
+      tags: [models]
+      summary: List curated base models
+      responses:
+        "200":
+          description: List of models
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Model"
+
+  /models/{modelId}:
+    get:
+      operationId: getModel
+      tags: [models]
+      summary: Get a single model's detail
+      parameters:
+        - $ref: "#/components/parameters/ModelIdParam"
+      responses:
+        "200":
+          description: Model detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Model"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /models/{modelId}/download:
+    post:
+      operationId: startModelDownload
+      tags: [models]
+      summary: Start downloading a model
+      parameters:
+        - $ref: "#/components/parameters/ModelIdParam"
+      responses:
+        "202":
+          description: Download started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Model"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /models/{modelId}/download/events:
+    get:
+      operationId: streamModelDownloadEvents
+      tags: [models]
+      summary: Server-sent events stream of download progress
+      description: text/event-stream of ModelDownloadEvent payloads
+      parameters:
+        - $ref: "#/components/parameters/ModelIdParam"
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /datasets:
+    get:
+      operationId: listDatasets
+      tags: [datasets]
+      summary: List uploaded datasets
+      responses:
+        "200":
+          description: List of datasets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Dataset"
+    post:
+      operationId: uploadDataset
+      tags: [datasets]
+      summary: Upload a dataset file (multipart/form-data, field name "file")
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DatasetUpload"
+      responses:
+        "201":
+          description: Dataset uploaded and validated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dataset"
+        "400":
+          description: Invalid dataset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /datasets/{datasetId}:
+    get:
+      operationId: getDataset
+      tags: [datasets]
+      summary: Get dataset detail including a row preview
+      parameters:
+        - $ref: "#/components/parameters/DatasetIdParam"
+      responses:
+        "200":
+          description: Dataset detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dataset"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteDataset
+      tags: [datasets]
+      summary: Delete an uploaded dataset
+      parameters:
+        - $ref: "#/components/parameters/DatasetIdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /presets:
+    get:
+      operationId: listPresets
+      tags: [training]
+      summary: List plain-language training presets
+      responses:
+        "200":
+          description: List of presets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrainingPreset"
+
+  /jobs:
+    get:
+      operationId: listJobs
+      tags: [training]
+      summary: List training jobs
+      responses:
+        "200":
+          description: List of jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TrainingJob"
+    post:
+      operationId: createJob
+      tags: [training]
+      summary: Create and start a fine-tuning job
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainingJobInput"
+      responses:
+        "201":
+          description: Job created and started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingJob"
+        "400":
+          description: Invalid job configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{jobId}:
+    get:
+      operationId: getJob
+      tags: [training]
+      summary: Get a training job's current state
+      parameters:
+        - $ref: "#/components/parameters/JobIdParam"
+      responses:
+        "200":
+          description: Job detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingJob"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{jobId}/cancel:
+    post:
+      operationId: cancelJob
+      tags: [training]
+      summary: Cancel a running training job
+      parameters:
+        - $ref: "#/components/parameters/JobIdParam"
+      responses:
+        "200":
+          description: Job cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingJob"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{jobId}/events:
+    get:
+      operationId: streamJobEvents
+      tags: [training]
+      summary: Server-sent events stream of training progress and logs
+      description: text/event-stream of TrainingJobEvent payloads
+      parameters:
+        - $ref: "#/components/parameters/JobIdParam"
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /jobs/{jobId}/export:
+    post:
+      operationId: exportJob
+      tags: [training]
+      summary: Export a completed job's fine-tuned model
+      parameters:
+        - $ref: "#/components/parameters/JobIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExportInput"
+      responses:
+        "202":
+          description: Export started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainingJob"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Job not ready for export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /jobs/{jobId}/export/download:
+    get:
+      operationId: downloadJobExport
+      tags: [training]
+      summary: Download the exported model archive
+      parameters:
+        - $ref: "#/components/parameters/JobIdParam"
+      responses:
+        "200":
+          description: Binary archive download
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        "404":
+          description: Not found or export not ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
 components:
+  parameters:
+    ModelIdParam:
+      name: modelId
+      in: path
+      required: true
+      schema:
+        type: string
+    DatasetIdParam:
+      name: datasetId
+      in: path
+      required: true
+      schema:
+        type: string
+    JobIdParam:
+      name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +390,277 @@ components:
       required:
         - status
 
+    SystemStatus:
+      type: object
+      required:
+        - isAppleSilicon
+        - trainingBackendReady
+        - simulationMode
+        - platform
+        - freeDiskGb
+        - message
+      properties:
+        isAppleSilicon:
+          type: boolean
+        trainingBackendReady:
+          type: boolean
+          description: True when real MLX training can run on this machine
+        simulationMode:
+          type: boolean
+          description: True when running somewhere other than the user's Mac; downloads/training are simulated for preview purposes
+        platform:
+          type: string
+        freeDiskGb:
+          type: number
+        message:
+          type: string
+
+    ModelSize:
+      type: string
+      enum: [small, medium, large]
+
+    ModelStatus:
+      type: string
+      enum: [not_downloaded, downloading, ready, failed]
+
+    Model:
+      type: object
+      required:
+        - id
+        - name
+        - family
+        - parameterCount
+        - sizeCategory
+        - sizeGb
+        - description
+        - recommendedUse
+        - memoryGuidance
+        - status
+        - downloadProgress
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        family:
+          type: string
+        parameterCount:
+          type: string
+          description: Human readable parameter count, e.g. "3B"
+        sizeCategory:
+          $ref: "#/components/schemas/ModelSize"
+        sizeGb:
+          type: number
+        description:
+          type: string
+        recommendedUse:
+          type: string
+        memoryGuidance:
+          type: string
+          description: Plain language guidance, e.g. "Comfortable on any modern Mac"
+        status:
+          $ref: "#/components/schemas/ModelStatus"
+        downloadProgress:
+          type: number
+          description: 0 to 100
+        error:
+          type: ["string", "null"]
+
+    DatasetUpload:
+      type: object
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+        name:
+          type: string
+
+    DatasetStatus:
+      type: string
+      enum: [validating, ready, invalid]
+
+    DatasetRow:
+      type: object
+      required:
+        - prompt
+        - response
+      properties:
+        prompt:
+          type: string
+        response:
+          type: string
+
+    Dataset:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - rowCount
+        - sizeBytes
+        - createdAt
+        - preview
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          $ref: "#/components/schemas/DatasetStatus"
+        rowCount:
+          type: integer
+        sizeBytes:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        preview:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatasetRow"
+        error:
+          type: ["string", "null"]
+
+    TrainingPreset:
+      type: object
+      required:
+        - id
+        - name
+        - description
+        - estimatedTime
+        - epochs
+        - learningRate
+        - loraRank
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        estimatedTime:
+          type: string
+          description: Plain language estimate, e.g. "A few minutes"
+        epochs:
+          type: integer
+        learningRate:
+          type: number
+        loraRank:
+          type: integer
+
+    JobStatus:
+      type: string
+      enum:
+        - queued
+        - preparing
+        - training
+        - completed
+        - failed
+        - cancelled
+        - exporting
+        - exported
+
+    TrainingJobInput:
+      type: object
+      required:
+        - name
+        - modelId
+        - datasetId
+        - presetId
+      properties:
+        name:
+          type: string
+        modelId:
+          type: string
+        datasetId:
+          type: string
+        presetId:
+          type: string
+
+    TrainingJob:
+      type: object
+      required:
+        - id
+        - name
+        - modelId
+        - modelName
+        - datasetId
+        - datasetName
+        - presetId
+        - presetName
+        - status
+        - progress
+        - currentEpoch
+        - totalEpochs
+        - loss
+        - etaSeconds
+        - statusMessage
+        - simulated
+        - createdAt
+        - exportReady
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        modelId:
+          type: string
+        modelName:
+          type: string
+        datasetId:
+          type: string
+        datasetName:
+          type: string
+        presetId:
+          type: string
+        presetName:
+          type: string
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        progress:
+          type: number
+          description: 0 to 100
+        currentEpoch:
+          type: integer
+        totalEpochs:
+          type: integer
+        loss:
+          type: ["number", "null"]
+        etaSeconds:
+          type: ["integer", "null"]
+        statusMessage:
+          type: string
+          description: Human readable current status, no jargon or stack traces
+        error:
+          type: ["string", "null"]
+        simulated:
+          type: boolean
+          description: True if this job ran in simulation mode rather than real MLX training
+        createdAt:
+          type: string
+          format: date-time
+        exportReady:
+          type: boolean
+        exportFormat:
+          type: ["string", "null"]
+
+    ExportInput:
+      type: object
+      required:
+        - format
+      properties:
+        format:
+          type: string
+          enum: [ollama, gguf]
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+        suggestion:
+          type: string
