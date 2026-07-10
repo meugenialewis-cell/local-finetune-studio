@@ -96,6 +96,11 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
+    try:
+        rank = max(1, int(float(lora_rank)))
+    except ValueError:
+        rank = 8
+
     # Rough number of training steps: mlx_lm.lora counts optimizer iterations,
     # not epochs, so we approximate iters-per-epoch from dataset size with a
     # small fixed batch size and multiply by the requested epoch count.
@@ -107,30 +112,29 @@ def main():
     batch_size = 1
     iters = max(10, (train_size // batch_size) * epochs)
 
-    cmd = [
-        sys.executable,
-        "-m",
-        "mlx_lm.lora",
-        "--model",
-        model_dir,
-        "--train",
-        "--data",
-        data_dir,
-        "--iters",
-        str(iters),
-        "--learning-rate",
-        str(learning_rate),
-        "--batch-size",
-        str(batch_size),
-        "--adapter-path",
-        output_dir,
-        "--steps-per-report",
-        "1",
-        "--save-every",
-        str(max(10, iters // 5)),
-    ]
+    # mlx_lm.lora's LoRA rank/alpha/dropout are only configurable via a YAML
+    # config file (`-c`), not plain CLI flags, so we write one here to make
+    # the preset's lora_rank actually take effect.
+    config_path = os.path.join(output_dir, "_lora_config.yaml")
+    with open(config_path, "w", encoding="utf-8") as f:
+        f.write(f"model: \"{model_dir}\"\n")
+        f.write("train: true\n")
+        f.write(f"data: \"{data_dir}\"\n")
+        f.write(f"iters: {iters}\n")
+        f.write(f"learning_rate: {learning_rate}\n")
+        f.write(f"batch_size: {batch_size}\n")
+        f.write(f"adapter_path: \"{output_dir}\"\n")
+        f.write("steps_per_report: 1\n")
+        f.write(f"save_every: {max(10, iters // 5)}\n")
+        f.write("lora_parameters:\n")
+        f.write(f"  rank: {rank}\n")
+        f.write("  alpha: " + str(rank * 2) + "\n")
+        f.write("  dropout: 0.0\n")
+        f.write("  scale: 10.0\n")
 
-    emit({"type": "progress", "percent": 5, "message": "Starting mlx_lm.lora training process"})
+    cmd = [sys.executable, "-m", "mlx_lm.lora", "--config", config_path]
+
+    emit({"type": "progress", "percent": 5, "message": f"Starting mlx_lm.lora training process (LoRA rank {rank})"})
 
     try:
         proc = subprocess.Popen(
@@ -168,15 +172,25 @@ def main():
 
     returncode = proc.wait()
 
+    shutil.rmtree(data_dir, ignore_errors=True)
+    try:
+        os.remove(config_path)
+    except OSError:
+        pass
+
+    if returncode is not None and returncode < 0:
+        # Negative return code means the process was terminated by a signal,
+        # i.e. the user cancelled training from the app.
+        emit({"type": "error", "message": "Training was cancelled."})
+        sys.exit(1)
+
     if returncode != 0:
         emit({
             "type": "error",
             "message": f"mlx_lm.lora exited with an error (code {returncode}). Check that your mlx-lm version supports these flags.",
         })
-        shutil.rmtree(data_dir, ignore_errors=True)
         sys.exit(returncode)
 
-    shutil.rmtree(data_dir, ignore_errors=True)
     emit({"type": "done", "adapterDir": output_dir, "loss": last_loss})
 
 

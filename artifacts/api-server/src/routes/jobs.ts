@@ -18,6 +18,8 @@ import path from "path";
 
 const router: IRouter = Router();
 
+const runningProcesses = new Map<string, ReturnType<typeof runPythonScript>>();
+
 function serialize(j: JobState) {
   return {
     id: j.id,
@@ -145,13 +147,15 @@ function runRealTraining(
 
   const outputDir = path.join(MODELS_DIR, `${job.id}-adapter`);
 
-  runPythonScript(
+  const child = runPythonScript(
     "train.py",
     [modelDir, datasetPath, outputDir, String(preset.epochs), String(preset.learningRate), String(preset.loraRank)],
     (event) => {
       if (event.type === "progress") {
         job.status = "training";
-        job.progress = Math.min(99, Math.round(Number(event.percent) || job.progress));
+        if (event.percent !== null && event.percent !== undefined) {
+          job.progress = Math.min(99, Math.round(Number(event.percent) || job.progress));
+        }
         if (typeof event.epoch === "number") job.currentEpoch = event.epoch;
         if (typeof event.totalEpochs === "number") job.totalEpochs = event.totalEpochs;
         if (typeof event.loss === "number") {
@@ -170,21 +174,35 @@ function runRealTraining(
         job.logs.push(`[${new Date().toLocaleTimeString()}] Training complete`);
         emitJobUpdate(job);
       } else if (event.type === "error") {
-        job.status = "failed";
-        job.error = (event.message as string) ?? "Training failed on your Mac.";
-        job.statusMessage = "Training failed";
-        job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
+        if (job.cancelRequested) {
+          job.status = "cancelled";
+          job.statusMessage = "Training cancelled";
+          job.logs.push(`[${new Date().toLocaleTimeString()}] Training cancelled`);
+        } else {
+          job.status = "failed";
+          job.error = (event.message as string) ?? "Training failed on your Mac.";
+          job.statusMessage = "Training failed";
+          job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
+        }
         emitJobUpdate(job);
       }
     },
     (code) => {
+      runningProcesses.delete(job.id);
       if (job.status === "preparing" || job.status === "training") {
-        job.status = "failed";
-        job.error = job.error ?? `Training process exited unexpectedly (code ${code}).`;
+        if (job.cancelRequested) {
+          job.status = "cancelled";
+          job.statusMessage = "Training cancelled";
+          job.logs.push(`[${new Date().toLocaleTimeString()}] Training cancelled`);
+        } else {
+          job.status = "failed";
+          job.error = job.error ?? `Training process exited unexpectedly (code ${code}).`;
+        }
         emitJobUpdate(job);
       }
     },
   );
+  runningProcesses.set(job.id, child);
 }
 
 router.post("/jobs/:jobId/cancel", (req, res) => {
@@ -198,6 +216,14 @@ router.post("/jobs/:jobId/cancel", (req, res) => {
     return;
   }
   job.cancelRequested = true;
+  const child = runningProcesses.get(job.id);
+  if (child) {
+    job.logs.push(`[${new Date().toLocaleTimeString()}] Cancelling — stopping local training process`);
+    child.kill("SIGTERM");
+  } else {
+    // No real process running (simulated job) — simulate.ts's own loop
+    // checks cancelRequested and will transition the job to cancelled.
+  }
   res.json(CancelJobResponse.parse(serialize(job)));
 });
 
