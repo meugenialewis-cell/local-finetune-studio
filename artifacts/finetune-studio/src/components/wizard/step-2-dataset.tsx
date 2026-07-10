@@ -1,13 +1,15 @@
 import { useState, useRef } from "react";
 import { useWizard } from "./wizard-context";
-import { useListDatasets, useUploadDataset, useDeleteDataset } from "@workspace/api-client-react";
+import { useListDatasets, useUploadDataset, useDeleteDataset, getListDatasetsQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { UploadCloud, FileText, CheckCircle2, AlertCircle, Trash2, Database } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function Step2Dataset() {
   const { datasetId, setDatasetId, setCurrentStep } = useWizard();
   const { data: datasets, isLoading } = useListDatasets();
+  const queryClient = useQueryClient();
   const uploadDataset = useUploadDataset();
   const deleteDataset = useDeleteDataset();
   
@@ -24,6 +26,7 @@ export function Step2Dataset() {
     uploadDataset.mutate({ data: { file, name: file.name } }, {
       onSuccess: (data) => {
         setDatasetId(data.id);
+        queryClient.invalidateQueries({ queryKey: getListDatasetsQueryKey() });
       }
     });
   };
@@ -153,6 +156,7 @@ export function Step2Dataset() {
                           deleteDataset.mutate({ datasetId: dataset.id }, {
                             onSuccess: () => {
                               if (datasetId === dataset.id) setDatasetId(null);
+                              queryClient.invalidateQueries({ queryKey: getListDatasetsQueryKey() });
                             }
                           });
                         }}

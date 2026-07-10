@@ -1,5 +1,5 @@
 import { useWizard } from "./wizard-context";
-import { useGetJob, useExportJob } from "@workspace/api-client-react";
+import { useGetJob, useExportJob, getGetJobQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Box, Download, Settings2, Package, ArrowRight, RotateCcw } from "lucide-react";
 import { useState } from "react";
@@ -7,7 +7,16 @@ import { Link } from "wouter";
 
 export function Step5Export() {
   const { jobId, setCurrentStep } = useWizard();
-  const { data: job, refetch } = useGetJob(jobId || "", { query: { enabled: !!jobId } });
+  const { data: job, refetch } = useGetJob(jobId || "", {
+    query: {
+      enabled: !!jobId,
+      queryKey: getGetJobQueryKey(jobId || ""),
+      refetchInterval: (query) => {
+        const status = query.state.data?.status;
+        return status === "exporting" ? 1500 : false;
+      },
+    },
+  });
   const exportJob = useExportJob();
   const [format, setFormat] = useState<"gguf" | "ollama">("gguf");
 

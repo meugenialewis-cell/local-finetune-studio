@@ -1,9 +1,10 @@
-import { useListModels, useStartModelDownload, getGetModelQueryKey } from "@workspace/api-client-react";
+import { useListModels, useStartModelDownload, getGetModelQueryKey, getListModelsQueryKey } from "@workspace/api-client-react";
 import { useWizard } from "./wizard-context";
 import { useModelDownloadSSE } from "@/lib/sse";
 import { CheckCircle2, Download, AlertCircle, Box, HardDrive, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
 
 export function Step1Model() {
   const { data: models, isLoading } = useListModels();
@@ -12,6 +13,26 @@ export function Step1Model() {
   const queryClient = useQueryClient();
 
   const selectedModelStream = useModelDownloadSSE(modelId || undefined);
+  const lastSyncedStatus = useRef<string | undefined>(undefined);
+
+  // Keep the models list cache in sync with the live SSE stream so the
+  // "Continue" gating (which reads from the list query) reflects reality.
+  useEffect(() => {
+    if (!modelId || !selectedModelStream.status) return;
+    if (lastSyncedStatus.current === selectedModelStream.status) return;
+    lastSyncedStatus.current = selectedModelStream.status;
+
+    queryClient.setQueryData(getGetModelQueryKey(modelId), selectedModelStream);
+    if (selectedModelStream.status === "ready" || selectedModelStream.status === "failed") {
+      queryClient.invalidateQueries({ queryKey: getListModelsQueryKey() });
+    } else {
+      queryClient.setQueryData(getListModelsQueryKey(), (old: any) =>
+        Array.isArray(old)
+          ? old.map((m) => (m.id === modelId ? { ...m, ...selectedModelStream } : m))
+          : old
+      );
+    }
+  }, [modelId, selectedModelStream.status, selectedModelStream.downloadProgress, queryClient]);
 
   if (isLoading) {
     return <div className="text-center py-20 animate-pulse text-muted-foreground">Loading models...</div>;

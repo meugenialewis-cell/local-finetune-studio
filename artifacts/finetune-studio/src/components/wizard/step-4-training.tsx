@@ -1,12 +1,14 @@
 import { useWizard } from "./wizard-context";
-import { useGetJob, useCancelJob } from "@workspace/api-client-react";
+import { useGetJob, useCancelJob, getGetJobQueryKey } from "@workspace/api-client-react";
 import { useJobEventsSSE } from "@/lib/sse";
 import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, CheckCircle2, ChevronRight, XCircle, RotateCcw } from "lucide-react";
 
 export function Step4Training() {
   const { jobId, setCurrentStep } = useWizard();
-  const { data: jobInitial, isLoading } = useGetJob(jobId || "", { query: { enabled: !!jobId } });
+  const { data: jobInitial, isLoading } = useGetJob(jobId || "", {
+    query: { enabled: !!jobId, queryKey: getGetJobQueryKey(jobId || "") },
+  });
   const liveJob = useJobEventsSSE(jobId || undefined);
   const cancelJob = useCancelJob();
 
