@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """
-Runs a LoRA fine-tune of a local MLX model against a JSONL dataset.
+Runs a real LoRA fine-tune of a local MLX model against a JSONL dataset by
+invoking mlx-lm's stable, public `mlx_lm.lora` CLI (the same command
+documented at https://github.com/ml-explore/mlx-examples for LoRA training).
+We shell out to the CLI rather than importing internal training functions
+because mlx-lm's Python training API has changed across releases, while the
+CLI's flags and stdout format have stayed stable.
 
 Usage: python3 train.py <model_dir> <dataset_jsonl> <output_dir> <epochs> <learning_rate> <lora_rank>
 
@@ -15,6 +20,10 @@ when it (or MLX) is unavailable, so the app is fully usable for prototyping
 in this cloud workspace.
 """
 import json
+import os
+import re
+import shutil
+import subprocess
 import sys
 
 
@@ -22,12 +31,47 @@ def emit(obj):
     print(json.dumps(obj), flush=True)
 
 
+ITER_RE = re.compile(
+    r"Iter\s+(\d+):\s*(?:Val loss|Train loss)\s+([0-9.]+)", re.IGNORECASE
+)
+
+
+def build_lora_dataset(dataset_jsonl: str, data_dir: str) -> None:
+    """mlx_lm.lora expects a directory containing train.jsonl / valid.jsonl,
+    each line shaped like {"prompt": ..., "completion": ...}. Our uploaded
+    dataset is already {"prompt": ..., "response": ...} per line, so we
+    just rename the field and carve off a small validation slice."""
+    os.makedirs(data_dir, exist_ok=True)
+    rows = []
+    with open(dataset_jsonl, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            row = json.loads(line)
+            rows.append({"prompt": row.get("prompt", ""), "completion": row.get("response", "")})
+
+    if not rows:
+        raise ValueError("Dataset is empty after parsing.")
+
+    val_count = max(1, min(len(rows) // 10, 20)) if len(rows) > 1 else 1
+    valid_rows = rows[:val_count] if len(rows) > val_count else rows
+    train_rows = rows if len(rows) <= val_count else rows[val_count:]
+
+    with open(os.path.join(data_dir, "train.jsonl"), "w", encoding="utf-8") as f:
+        for row in train_rows:
+            f.write(json.dumps(row) + "\n")
+    with open(os.path.join(data_dir, "valid.jsonl"), "w", encoding="utf-8") as f:
+        for row in valid_rows:
+            f.write(json.dumps(row) + "\n")
+
+
 def main():
     if len(sys.argv) < 7:
         emit({"type": "error", "message": "Usage: train.py <model_dir> <dataset_jsonl> <output_dir> <epochs> <learning_rate> <lora_rank>"})
         sys.exit(1)
 
-    model_dir, dataset_path, output_dir, epochs, learning_rate, lora_rank = sys.argv[1:7]
+    model_dir, dataset_path, output_dir, epochs_str, learning_rate, lora_rank = sys.argv[1:7]
 
     try:
         import mlx_lm  # noqa: F401
@@ -39,27 +83,101 @@ def main():
         sys.exit(2)
 
     try:
-        from mlx_lm.tuner import train as mlx_train  # type: ignore
-    except Exception:
-        emit({
-            "type": "error",
-            "message": "mlx-lm is installed but its training API could not be loaded. Check your mlx-lm version.",
-        })
+        epochs = max(1, int(float(epochs_str)))
+    except ValueError:
+        epochs = 1
+
+    data_dir = os.path.join(output_dir, "_data")
+    try:
+        build_lora_dataset(dataset_path, data_dir)
+    except Exception as exc:
+        emit({"type": "error", "message": f"Could not prepare your dataset for training: {exc}"})
         sys.exit(2)
 
-    # NOTE: mlx-lm's LoRA training API evolves across releases. Wiring the
-    # exact call here is intentionally left as a small, well-documented
-    # integration point for the user's local mlx-lm version, since it cannot
-    # be exercised or verified in this cloud workspace (no Apple GPU).
-    emit({
-        "type": "error",
-        "message": (
-            "MLX training integration point: call your installed mlx-lm version's "
-            "LoRA training entrypoint here with model_dir=" + model_dir +
-            ", dataset=" + dataset_path + ", output_dir=" + output_dir + "."
-        ),
-    })
-    sys.exit(2)
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Rough number of training steps: mlx_lm.lora counts optimizer iterations,
+    # not epochs, so we approximate iters-per-epoch from dataset size with a
+    # small fixed batch size and multiply by the requested epoch count.
+    try:
+        with open(os.path.join(data_dir, "train.jsonl"), "r", encoding="utf-8") as f:
+            train_size = sum(1 for _ in f)
+    except OSError:
+        train_size = 1
+    batch_size = 1
+    iters = max(10, (train_size // batch_size) * epochs)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "mlx_lm.lora",
+        "--model",
+        model_dir,
+        "--train",
+        "--data",
+        data_dir,
+        "--iters",
+        str(iters),
+        "--learning-rate",
+        str(learning_rate),
+        "--batch-size",
+        str(batch_size),
+        "--adapter-path",
+        output_dir,
+        "--steps-per-report",
+        "1",
+        "--save-every",
+        str(max(10, iters // 5)),
+    ]
+
+    emit({"type": "progress", "percent": 5, "message": "Starting mlx_lm.lora training process"})
+
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        )
+    except FileNotFoundError as exc:
+        emit({"type": "error", "message": f"Could not launch mlx_lm.lora: {exc}"})
+        sys.exit(2)
+
+    last_loss = None
+    assert proc.stdout is not None
+    for raw_line in proc.stdout:
+        line = raw_line.strip()
+        if not line:
+            continue
+        match = ITER_RE.search(line)
+        if match:
+            iter_num = int(match.group(1))
+            loss = float(match.group(2))
+            last_loss = loss
+            percent = min(99, 5 + int((iter_num / iters) * 94))
+            emit({
+                "type": "progress",
+                "percent": percent,
+                "epoch": min(epochs, 1 + (iter_num // max(1, iters // epochs))),
+                "totalEpochs": epochs,
+                "loss": loss,
+                "message": f"Training step {iter_num}/{iters} — loss {loss:.3f}",
+            })
+        else:
+            # Surface other informative mlx_lm output (e.g. warnings) as progress
+            # messages without a loss value, so users see the process is alive.
+            if line and not line.startswith("Loading"):
+                emit({"type": "progress", "percent": None, "message": line[:200]})
+
+    returncode = proc.wait()
+
+    if returncode != 0:
+        emit({
+            "type": "error",
+            "message": f"mlx_lm.lora exited with an error (code {returncode}). Check that your mlx-lm version supports these flags.",
+        })
+        shutil.rmtree(data_dir, ignore_errors=True)
+        sys.exit(returncode)
+
+    shutil.rmtree(data_dir, ignore_errors=True)
+    emit({"type": "done", "adapterDir": output_dir, "loss": last_loss})
 
 
 if __name__ == "__main__":

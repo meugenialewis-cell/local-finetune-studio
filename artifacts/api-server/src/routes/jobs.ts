@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import fs from "fs";
+import { execFileSync } from "child_process";
 import {
   ListJobsResponse,
   GetJobResponse,
@@ -310,6 +311,26 @@ router.get("/jobs/:jobId/export/download", (req, res) => {
   const job = jobs.get(req.params.jobId as string);
   if (!job || !job.exportReady) {
     res.status(404).json({ message: "No export is ready for this job yet." });
+    return;
+  }
+
+  // Real export path: job.exportPath was produced by export_model.py (a
+  // model.gguf file, or a directory containing the fused model + Modelfile).
+  if (job.exportPath && !job.simulated && fs.existsSync(job.exportPath)) {
+    const stat = fs.statSync(job.exportPath);
+    if (stat.isDirectory()) {
+      // Zip the export directory on the fly so the user gets a single download.
+      const zipPath = path.join(EXPORTS_DIR, `${job.id}.zip`);
+      try {
+        execFileSync("zip", ["-r", "-q", zipPath, "."], { cwd: job.exportPath });
+      } catch (err) {
+        res.status(500).json({ message: `Could not package your export for download: ${(err as Error).message}` });
+        return;
+      }
+      res.download(zipPath, `${job.name.replace(/[^a-z0-9-_]+/gi, "_")}-${job.exportFormat}.zip`);
+      return;
+    }
+    res.download(job.exportPath, path.basename(job.exportPath));
     return;
   }
 
