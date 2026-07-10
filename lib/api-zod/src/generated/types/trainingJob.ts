@@ -35,4 +35,8 @@ export interface TrainingJob {
   exportReady: boolean;
   /** @nullable */
   exportFormat?: string | null;
+  /** Recent human-readable log lines for this job (no raw stack traces) */
+  logs?: string[];
+  /** Loss value recorded at each training step, oldest first, for charting */
+  lossHistory?: number[];
 }

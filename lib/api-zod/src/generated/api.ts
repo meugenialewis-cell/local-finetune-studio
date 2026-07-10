@@ -220,7 +220,9 @@ export const ListJobsResponseItem = zod.object({
   "simulated": zod.boolean().describe('True if this job ran in simulation mode rather than real MLX training'),
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
-  "exportFormat": zod.string().nullish()
+  "exportFormat": zod.string().nullish(),
+  "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
+  "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
 export const ListJobsResponse = zod.array(ListJobsResponseItem)
 
@@ -255,7 +257,9 @@ export const CreateJobResponse = zod.object({
   "simulated": zod.boolean().describe('True if this job ran in simulation mode rather than real MLX training'),
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
-  "exportFormat": zod.string().nullish()
+  "exportFormat": zod.string().nullish(),
+  "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
+  "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
 
 
@@ -286,7 +290,9 @@ export const GetJobResponse = zod.object({
   "simulated": zod.boolean().describe('True if this job ran in simulation mode rather than real MLX training'),
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
-  "exportFormat": zod.string().nullish()
+  "exportFormat": zod.string().nullish(),
+  "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
+  "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
 
 
@@ -317,7 +323,9 @@ export const CancelJobResponse = zod.object({
   "simulated": zod.boolean().describe('True if this job ran in simulation mode rather than real MLX training'),
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
-  "exportFormat": zod.string().nullish()
+  "exportFormat": zod.string().nullish(),
+  "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
+  "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
 
 
@@ -363,7 +371,9 @@ export const ExportJobResponse = zod.object({
   "simulated": zod.boolean().describe('True if this job ran in simulation mode rather than real MLX training'),
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
-  "exportFormat": zod.string().nullish()
+  "exportFormat": zod.string().nullish(),
+  "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
+  "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
 
 

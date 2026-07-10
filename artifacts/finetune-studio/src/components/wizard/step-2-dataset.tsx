@@ -74,7 +74,7 @@ export function Step2Dataset() {
               type="file" 
               ref={fileInputRef} 
               className="hidden" 
-              accept=".jsonl,.json" 
+              accept=".jsonl,.json,.csv" 
               onChange={handleFileChange}
             />
             
@@ -90,7 +90,7 @@ export function Step2Dataset() {
             ) : (
               <div>
                 <h3 className="text-lg font-medium mb-1">Click or drag file here</h3>
-                <p className="text-sm text-muted-foreground mb-4">Accepts JSONL format (max 500MB)</p>
+                <p className="text-sm text-muted-foreground mb-4">Accepts CSV or JSONL format (max 50MB)</p>
                 <Button variant="secondary" size="sm">Select File</Button>
               </div>
             )}
@@ -183,6 +183,36 @@ export function Step2Dataset() {
           )}
         </div>
       </div>
+
+      {(() => {
+        const selected = datasets?.find((d) => d.id === datasetId);
+        if (!selected || selected.status !== "ready" || selected.preview.length === 0) return null;
+        return (
+          <div className="mb-8">
+            <h3 className="text-sm font-medium uppercase tracking-wider text-muted-foreground mb-4">
+              Preview — first {Math.min(5, selected.preview.length)} rows
+            </h3>
+            <div className="rounded-xl border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-secondary/50">
+                  <tr>
+                    <th className="text-left font-medium px-4 py-2 w-1/2">Prompt</th>
+                    <th className="text-left font-medium px-4 py-2 w-1/2">Response</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {selected.preview.slice(0, 5).map((row, i) => (
+                    <tr key={i} className="border-t border-border/50">
+                      <td className="px-4 py-2 align-top text-muted-foreground truncate max-w-xs">{row.prompt}</td>
+                      <td className="px-4 py-2 align-top text-muted-foreground truncate max-w-xs">{row.response}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="flex justify-between pt-4 border-t border-border">
         <Button variant="ghost" onClick={() => setCurrentStep(1)}>Back</Button>

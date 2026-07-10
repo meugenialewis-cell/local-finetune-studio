@@ -8,9 +8,11 @@ import {
   ExportJobResponse,
   ExportJobBody,
 } from "@workspace/api-zod";
-import { jobs, models, datasets, newId, JobState, jobEvents, EXPORTS_DIR } from "../lib/store";
+import { jobs, models, datasets, newId, JobState, jobEvents, EXPORTS_DIR, MODELS_DIR, emitJobUpdate } from "../lib/store";
 import { PRESET_CATALOG } from "../lib/catalog";
 import { simulateTraining, simulateExport } from "../lib/simulate";
+import { getSystemStatus } from "../lib/systemCheck";
+import { runPythonScript } from "../lib/runner";
 import path from "path";
 
 const router: IRouter = Router();
@@ -37,6 +39,8 @@ function serialize(j: JobState) {
     createdAt: j.createdAt,
     exportReady: j.exportReady,
     exportFormat: j.exportFormat,
+    logs: j.logs,
+    lossHistory: j.lossHistory,
   };
 }
 
@@ -109,13 +113,78 @@ router.post("/jobs", (req, res) => {
     exportPath: null,
     adapterPath: null,
     cancelRequested: false,
+    logs: [],
+    lossHistory: [],
   };
+
+  const systemStatus = getSystemStatus();
+  job.simulated = !systemStatus.trainingBackendReady;
   jobs.set(id, job);
 
-  simulateTraining(job);
+  if (systemStatus.trainingBackendReady && model.localPath && dataset.filePath) {
+    runRealTraining(job, model.localPath, dataset.filePath, preset);
+  } else {
+    simulateTraining(job);
+  }
 
   res.status(201).json(CreateJobResponse.parse(serialize(job)));
 });
+
+function runRealTraining(
+  job: JobState,
+  modelDir: string,
+  datasetPath: string,
+  preset: (typeof PRESET_CATALOG)[number],
+) {
+  job.status = "preparing";
+  job.statusMessage = "Preparing your dataset and loading the base model";
+  job.progress = 2;
+  job.logs.push(`[${new Date().toLocaleTimeString()}] Preparing dataset and loading base model`);
+  emitJobUpdate(job);
+
+  const outputDir = path.join(MODELS_DIR, `${job.id}-adapter`);
+
+  runPythonScript(
+    "train.py",
+    [modelDir, datasetPath, outputDir, String(preset.epochs), String(preset.learningRate), String(preset.loraRank)],
+    (event) => {
+      if (event.type === "progress") {
+        job.status = "training";
+        job.progress = Math.min(99, Math.round(Number(event.percent) || job.progress));
+        if (typeof event.epoch === "number") job.currentEpoch = event.epoch;
+        if (typeof event.totalEpochs === "number") job.totalEpochs = event.totalEpochs;
+        if (typeof event.loss === "number") {
+          job.loss = event.loss;
+          job.lossHistory.push(event.loss);
+        }
+        job.statusMessage = (event.message as string) || job.statusMessage;
+        job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.statusMessage}`);
+        emitJobUpdate(job);
+      } else if (event.type === "done") {
+        job.status = "completed";
+        job.progress = 100;
+        job.etaSeconds = 0;
+        job.statusMessage = "Training complete";
+        job.adapterPath = (event.adapterDir as string) ?? outputDir;
+        job.logs.push(`[${new Date().toLocaleTimeString()}] Training complete`);
+        emitJobUpdate(job);
+      } else if (event.type === "error") {
+        job.status = "failed";
+        job.error = (event.message as string) ?? "Training failed on your Mac.";
+        job.statusMessage = "Training failed";
+        job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
+        emitJobUpdate(job);
+      }
+    },
+    (code) => {
+      if (job.status === "preparing" || job.status === "training") {
+        job.status = "failed";
+        job.error = job.error ?? `Training process exited unexpectedly (code ${code}).`;
+        emitJobUpdate(job);
+      }
+    },
+  );
+}
 
 router.post("/jobs/:jobId/cancel", (req, res) => {
   const job = jobs.get(req.params.jobId as string);
@@ -181,9 +250,61 @@ router.post("/jobs/:jobId/export", (req, res) => {
     return;
   }
 
-  simulateExport(job, parsed.data.format);
+  const systemStatus = getSystemStatus();
+  if (systemStatus.trainingBackendReady && job.adapterPath && !job.adapterPath.startsWith("simulated://")) {
+    const model = models.get(job.modelId);
+    runRealExport(job, model?.localPath ?? "", job.adapterPath, parsed.data.format);
+  } else {
+    simulateExport(job, parsed.data.format);
+  }
   res.json(ExportJobResponse.parse(serialize(job)));
 });
+
+function runRealExport(job: JobState, modelDir: string, adapterDir: string, format: "ollama" | "gguf") {
+  job.status = "exporting";
+  job.exportFormat = format;
+  job.progress = 0;
+  job.statusMessage = `Packaging your model as ${format === "ollama" ? "an Ollama model" : "a GGUF file"}`;
+  job.logs.push(`[${new Date().toLocaleTimeString()}] Starting export as ${format.toUpperCase()}`);
+  emitJobUpdate(job);
+
+  const outputDir = path.join(EXPORTS_DIR, job.id);
+
+  runPythonScript(
+    "export_model.py",
+    [modelDir, adapterDir, outputDir, format],
+    (event) => {
+      if (event.type === "progress") {
+        job.progress = Math.min(99, Math.round(Number(event.percent) || job.progress));
+        job.statusMessage = (event.message as string) || job.statusMessage;
+        job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.statusMessage}`);
+        emitJobUpdate(job);
+      } else if (event.type === "done") {
+        job.status = "exported";
+        job.progress = 100;
+        job.exportReady = true;
+        job.exportPath = (event.path as string) ?? outputDir;
+        job.statusMessage = "Export ready to download";
+        job.logs.push(`[${new Date().toLocaleTimeString()}] Export ready to download`);
+        emitJobUpdate(job);
+      } else if (event.type === "error") {
+        job.status = "completed";
+        job.error = (event.message as string) ?? "Export failed on your Mac.";
+        job.statusMessage = "Export failed — you can try again";
+        job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
+        emitJobUpdate(job);
+      }
+    },
+    (code) => {
+      if (job.status === "exporting") {
+        job.status = "completed";
+        job.error = job.error ?? `Export process exited unexpectedly (code ${code}).`;
+        job.statusMessage = "Export failed — you can try again";
+        emitJobUpdate(job);
+      }
+    },
+  );
+}
 
 router.get("/jobs/:jobId/export/download", (req, res) => {
   const job = jobs.get(req.params.jobId as string);

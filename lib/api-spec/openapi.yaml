@@ -645,6 +645,16 @@ components:
           type: boolean
         exportFormat:
           type: ["string", "null"]
+        logs:
+          type: array
+          description: Recent human-readable log lines for this job (no raw stack traces)
+          items:
+            type: string
+        lossHistory:
+          type: array
+          description: Loss value recorded at each training step, oldest first, for charting
+          items:
+            type: number
 
     ExportInput:
       type: object

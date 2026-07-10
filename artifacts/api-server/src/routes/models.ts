@@ -4,10 +4,12 @@ import {
   GetModelResponse,
   StartModelDownloadResponse,
 } from "@workspace/api-zod";
+import path from "path";
 import { MODEL_CATALOG } from "../lib/catalog";
-import { models, modelEvents, ModelState } from "../lib/store";
+import { models, modelEvents, ModelState, MODELS_DIR, emitModelUpdate } from "../lib/store";
 import { getSystemStatus } from "../lib/systemCheck";
 import { simulateModelDownload } from "../lib/simulate";
+import { runPythonScript } from "../lib/runner";
 
 const router: IRouter = Router();
 
@@ -83,11 +85,42 @@ router.post("/models/:modelId/download", (req, res) => {
   model.error = null;
 
   const status = getSystemStatus();
-  // Real downloads require huggingface_hub + network access from the user's
-  // own Mac; we always simulate here for a consistent, fast prototyping
-  // experience, and clearly label simulated jobs via system status.
-  void status;
-  simulateModelDownload(model, () => {});
+  if (status.trainingBackendReady) {
+    // Real path: run on the user's own Mac with huggingface_hub installed.
+    const destDir = path.join(MODELS_DIR, model.id);
+    emitModelUpdate(model);
+    runPythonScript(
+      "download_model.py",
+      [model.repoId, destDir],
+      (event) => {
+        if (event.type === "progress") {
+          model.downloadProgress = Math.min(99, Math.round(Number(event.percent) || 0));
+          emitModelUpdate(model);
+        } else if (event.type === "done") {
+          model.status = "ready";
+          model.downloadProgress = 100;
+          model.localPath = (event.path as string) ?? destDir;
+          emitModelUpdate(model);
+        } else if (event.type === "error") {
+          model.status = "failed";
+          model.error = (event.message as string) ?? "Model download failed.";
+          emitModelUpdate(model);
+        }
+      },
+      (code) => {
+        if (model.status === "downloading") {
+          model.status = "failed";
+          model.error = model.error ?? `Download process exited unexpectedly (code ${code}).`;
+          emitModelUpdate(model);
+        }
+      },
+    );
+  } else {
+    // Simulated path: used whenever this isn't running on Apple Silicon with
+    // MLX installed (e.g. this cloud preview), so the wizard stays fully
+    // usable for prototyping without a real GPU.
+    simulateModelDownload(model, () => {});
+  }
 
   res.json(StartModelDownloadResponse.parse(serialize(model)));
 });

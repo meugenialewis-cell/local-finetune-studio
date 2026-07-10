@@ -69,6 +69,13 @@ export interface JobState {
   exportPath: string | null;
   adapterPath: string | null;
   cancelRequested: boolean;
+  logs: string[];
+  lossHistory: number[];
+}
+
+export function pushJobLog(job: JobState, message: string) {
+  job.logs.push(`[${new Date().toLocaleTimeString()}] ${message}`);
+  if (job.logs.length > 200) job.logs.shift();
 }
 
 export const DATA_DIR = path.join(process.cwd(), "storage");

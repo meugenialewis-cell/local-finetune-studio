@@ -1,4 +1,4 @@
-import { ModelState, JobState, emitModelUpdate, emitJobUpdate, jobs } from "./store";
+import { ModelState, JobState, emitModelUpdate, emitJobUpdate, jobs, pushJobLog } from "./store";
 
 export function simulateModelDownload(model: ModelState, onDone: () => void) {
   model.status = "downloading";
@@ -26,6 +26,7 @@ export function simulateTraining(job: JobState) {
   job.status = "preparing";
   job.statusMessage = "Preparing your dataset and loading the base model";
   job.progress = 2;
+  pushJobLog(job, "Preparing dataset and loading base model (simulated)");
   emitJobUpdate(job);
 
   const totalEpochs = job.totalEpochs;
@@ -38,6 +39,7 @@ export function simulateTraining(job: JobState) {
     if (job.cancelRequested) return;
     job.status = "training";
     job.statusMessage = `Training epoch 1 of ${totalEpochs}`;
+    pushJobLog(job, `Started training (simulated), ${totalEpochs} epoch(s) planned`);
     emitJobUpdate(job);
 
     const interval = setInterval(() => {
@@ -45,6 +47,7 @@ export function simulateTraining(job: JobState) {
         clearInterval(interval);
         job.status = "cancelled";
         job.statusMessage = "Training was cancelled";
+        pushJobLog(job, "Training cancelled by user");
         emitJobUpdate(job);
         return;
       }
@@ -52,10 +55,14 @@ export function simulateTraining(job: JobState) {
       step++;
       loss = Math.max(0.15, loss - Math.random() * 0.12 - 0.02);
       job.loss = Math.round(loss * 1000) / 1000;
+      job.lossHistory.push(job.loss);
       job.currentEpoch = Math.min(totalEpochs, Math.ceil(step / stepsPerEpoch));
       job.progress = Math.min(99, Math.round((step / totalSteps) * 100));
       job.etaSeconds = Math.max(0, Math.round(((totalSteps - step) * 900) / 1000));
       job.statusMessage = `Training epoch ${job.currentEpoch} of ${totalEpochs}`;
+      if (step % stepsPerEpoch === 0 || step === totalSteps) {
+        pushJobLog(job, `Epoch ${job.currentEpoch}/${totalEpochs} — loss ${job.loss.toFixed(3)}`);
+      }
       emitJobUpdate(job);
 
       if (step >= totalSteps) {
@@ -65,6 +72,7 @@ export function simulateTraining(job: JobState) {
         job.etaSeconds = 0;
         job.statusMessage = "Training complete";
         job.adapterPath = `simulated://${job.id}/adapter`;
+        pushJobLog(job, "Training complete");
         emitJobUpdate(job);
       }
     }, 900);
@@ -78,6 +86,7 @@ export function simulateExport(job: JobState, format: "ollama" | "gguf") {
   job.exportFormat = format;
   job.statusMessage = `Packaging your model as ${format === "ollama" ? "an Ollama model" : "a GGUF file"}`;
   job.progress = 0;
+  pushJobLog(job, `Starting export as ${format.toUpperCase()} (simulated)`);
   emitJobUpdate(job);
 
   let step = 0;
@@ -92,6 +101,7 @@ export function simulateExport(job: JobState, format: "ollama" | "gguf") {
       job.exportReady = true;
       job.exportPath = `simulated://${job.id}/export.${format === "gguf" ? "gguf" : "ollama"}`;
       job.statusMessage = "Export ready to download";
+      pushJobLog(job, "Export ready to download");
       emitJobUpdate(job);
     }
   }, 500);

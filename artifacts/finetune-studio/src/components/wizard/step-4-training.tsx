@@ -3,6 +3,7 @@ import { useGetJob, useCancelJob, getGetJobQueryKey } from "@workspace/api-clien
 import { useJobEventsSSE } from "@/lib/sse";
 import { Button } from "@/components/ui/button";
 import { Activity, AlertTriangle, CheckCircle2, ChevronRight, XCircle, RotateCcw } from "lucide-react";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export function Step4Training() {
   const { jobId, setCurrentStep } = useWizard();
@@ -101,6 +102,26 @@ export function Step4Training() {
               </div>
             </div>
 
+            {job.lossHistory && job.lossHistory.length > 1 && (
+              <div className="p-4 rounded-lg bg-secondary/50 border border-border/50">
+                <div className="text-muted-foreground text-xs uppercase tracking-wider mb-2">Training Loss</div>
+                <div className="h-32">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={job.lossHistory.map((loss, i) => ({ step: i + 1, loss }))}>
+                      <XAxis dataKey="step" hide />
+                      <YAxis domain={["auto", "auto"]} hide />
+                      <Tooltip
+                        contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", fontSize: 12 }}
+                        formatter={(value: number) => [value.toFixed(3), "Loss"]}
+                        labelFormatter={(label) => `Step ${label}`}
+                      />
+                      <Line type="monotone" dataKey="loss" stroke="currentColor" className="text-primary" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
             {(isFailed || isCancelled) && job.error && (
               <div className="p-4 bg-destructive/10 border border-destructive/20 rounded-lg text-destructive text-sm flex gap-3 items-start">
                 <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
@@ -112,6 +133,19 @@ export function Step4Training() {
             )}
           </div>
         </div>
+
+        {job.logs && job.logs.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-border/50">
+            <div className="text-muted-foreground text-xs uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Activity className="w-3.5 h-3.5" /> Activity Log
+            </div>
+            <div className="bg-background border border-border/50 rounded-lg p-3 max-h-40 overflow-y-auto font-mono text-xs space-y-1">
+              {job.logs.slice(-30).map((line, i) => (
+                <div key={i} className="text-muted-foreground">{line}</div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex justify-between pt-4 border-t border-border">
