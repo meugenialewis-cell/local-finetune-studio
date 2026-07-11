@@ -1,3 +1,3 @@
 - [Express dotfile storage dirs](express-dotfile-storage.md) — never store files served via res.download/sendFile under a dot-prefixed dir like `.data`; Express's `send` blocks dotfile path segments (404).
 - [Real vs simulated backend execution](real-vs-simulated-execution.md) — gate real python/MLX subprocess spawning on a runtime hardware check, not just presence of a "simulated" flag; keep the simulate.ts path as a genuine fallback.
-- [Model catalog sizing](model-catalog-sizing.md) — mlx-community 4-bit repos sized for 128GB Mac; Kimi K2 (~578GB) won't fit, only Kimi-Dev-72B does; verify repo id resolves before adding.
+- [Model catalog sizing](model-catalog-sizing.md) — mlx-community 4-bit repos sized for 128GB Mac; Kimi K2 won't fit; verified hybrid repos + gated/missing ones listed; verify repo id resolves before adding.
