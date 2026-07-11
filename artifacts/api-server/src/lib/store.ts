@@ -133,12 +133,23 @@ export function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
 }
 
+// Persistence hooks are registered by lib/persistence.ts at boot. Kept as a
+// mutable registry (rather than a direct import) to avoid a circular import
+// between store.ts and persistence.ts.
+export const persistHooks: {
+  models: (() => void) | null;
+  datasets: (() => void) | null;
+  jobs: (() => void) | null;
+} = { models: null, datasets: null, jobs: null };
+
 export function emitModelUpdate(model: ModelState) {
   modelEvents.emit(model.id, model);
+  persistHooks.models?.();
 }
 
 export function emitJobUpdate(job: JobState) {
   jobEvents.emit(job.id, job);
+  persistHooks.jobs?.();
 }
 
 export function emitChatUpdate(session: ChatSessionState) {

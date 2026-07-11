@@ -9,6 +9,10 @@ import {
   pushJobLog,
 } from "./store";
 
+// Prepare-phase timers are kept out of the JobState objects themselves so
+// job state stays plain JSON-serializable data (it gets persisted to disk).
+const prepareTimeouts = new Map<string, NodeJS.Timeout>();
+
 export function simulateModelDownload(model: ModelState, onDone: () => void) {
   model.status = "downloading";
   model.downloadProgress = 0;
@@ -45,6 +49,7 @@ export function simulateTraining(job: JobState) {
   let loss = 2.4;
 
   const prepareTimeout = setTimeout(() => {
+    prepareTimeouts.delete(job.id);
     if (job.cancelRequested) {
       job.status = "cancelled";
       job.statusMessage = "Training was cancelled";
@@ -93,7 +98,7 @@ export function simulateTraining(job: JobState) {
     }, 900);
   }, 1200);
 
-  (job as JobState & { _prepareTimeout?: NodeJS.Timeout })._prepareTimeout = prepareTimeout;
+  prepareTimeouts.set(job.id, prepareTimeout);
 }
 
 export function simulateExport(job: JobState, format: "ollama" | "gguf") {

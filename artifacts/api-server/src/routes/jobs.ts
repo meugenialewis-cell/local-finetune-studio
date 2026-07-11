@@ -9,7 +9,7 @@ import {
   ExportJobResponse,
   ExportJobBody,
 } from "@workspace/api-zod";
-import { jobs, models, datasets, newId, JobState, jobEvents, EXPORTS_DIR, MODELS_DIR, emitJobUpdate } from "../lib/store";
+import { jobs, models, datasets, newId, JobState, jobEvents, EXPORTS_DIR, MODELS_DIR, emitJobUpdate, persistHooks } from "../lib/store";
 import { PRESET_CATALOG } from "../lib/catalog";
 import { simulateTraining, simulateExport } from "../lib/simulate";
 import { getSystemStatus } from "../lib/systemCheck";
@@ -134,6 +134,7 @@ router.post("/jobs", (req, res) => {
     );
   }
   jobs.set(id, job);
+  persistHooks.jobs?.();
 
   if (systemStatus.trainingBackendReady && model.localPath && dataset.filePath) {
     runRealTraining(job, model.localPath, dataset.filePath, preset);

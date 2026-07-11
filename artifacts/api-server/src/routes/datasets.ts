@@ -9,7 +9,7 @@ import {
   CreateDatasetFromTranscriptsBody,
   CreateDatasetFromTranscriptsResponse,
 } from "@workspace/api-zod";
-import { datasets, chatSessions, newId, DatasetState, DatasetRow, ChatMessage, DATASETS_DIR } from "../lib/store";
+import { datasets, chatSessions, newId, DatasetState, DatasetRow, ChatMessage, DATASETS_DIR, persistHooks } from "../lib/store";
 import { parseDataset } from "../lib/datasetParser";
 import { loadTranscriptsFromDisk } from "../lib/transcripts";
 
@@ -72,6 +72,7 @@ router.post("/datasets", upload.single("file"), (req, res) => {
     filePath,
   };
   datasets.set(id, dataset);
+  persistHooks.datasets?.();
 
   res.status(201).json(UploadDatasetResponse.parse(serialize(dataset)));
 });
@@ -168,6 +169,7 @@ router.post("/datasets/from-transcripts", (req, res) => {
     filePath,
   };
   datasets.set(id, dataset);
+  persistHooks.datasets?.();
 
   res.status(201).json(CreateDatasetFromTranscriptsResponse.parse(serialize(dataset)));
 });
@@ -183,6 +185,7 @@ router.delete("/datasets/:datasetId", (req, res) => {
     fs.unlinkSync(dataset.filePath);
   }
   datasets.delete(id);
+  persistHooks.datasets?.();
   res.status(204).end();
 });
 

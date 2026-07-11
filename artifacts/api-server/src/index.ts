@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { loadPersistedState } from "./lib/persistence";
+import { loadTranscriptsFromDisk } from "./lib/transcripts";
 
 const rawPort = process.env["PORT"];
 
@@ -14,6 +16,9 @@ const port = Number(rawPort);
 if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
+
+loadPersistedState();
+loadTranscriptsFromDisk();
 
 app.listen(port, (err) => {
   if (err) {
