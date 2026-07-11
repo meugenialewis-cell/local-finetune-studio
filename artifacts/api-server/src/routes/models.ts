@@ -13,7 +13,7 @@ import { runPythonScript } from "../lib/runner";
 
 const router: IRouter = Router();
 
-function ensureSeeded() {
+export function ensureSeeded() {
   if (models.size > 0) return;
   for (const m of MODEL_CATALOG) {
     models.set(m.id, {

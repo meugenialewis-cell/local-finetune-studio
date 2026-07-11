@@ -192,6 +192,180 @@ export const DeleteDatasetResponse = zod.void()
 
 
 /**
+ * Converts selected exchanges from saved chat sessions into a prompt/response dataset, optionally framed as the model's own memories.
+ * @summary Build a training dataset from curated chat transcripts
+ */
+export const CreateDatasetFromTranscriptsBody = zod.object({
+  "name": zod.string(),
+  "memoryFraming": zod.boolean().describe('When true, each example is framed as one of the model\'s own remembered experiences'),
+  "selections": zod.array(zod.object({
+  "sessionId": zod.string(),
+  "exchangeIndices": zod.array(zod.number()).describe('Zero-based indices of the kept user\/assistant exchange pairs within the session')
+}))
+})
+
+export const CreateDatasetFromTranscriptsResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['validating', 'ready', 'invalid']),
+  "rowCount": zod.number(),
+  "sizeBytes": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "preview": zod.array(zod.object({
+  "prompt": zod.string(),
+  "response": zod.string()
+})),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary List saved chat sessions (transcripts)
+ */
+export const ListChatSessionsResponseItem = zod.object({
+  "id": zod.string(),
+  "title": zod.string().describe('Human readable session title, e.g. first user message snippet'),
+  "modelId": zod.string(),
+  "modelName": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobName": zod.string().nullish().describe('Name of the fine-tuning job whose adapter is applied, if any'),
+  "simulated": zod.boolean().describe('True when replies are simulated because this isn\'t running on the user\'s Mac'),
+  "generating": zod.boolean().describe('True while the assistant reply is still streaming'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "messageCount": zod.number(),
+  "messages": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "timestamp": zod.coerce.date()
+})).describe('Full message history (empty in list responses)'),
+  "error": zod.string().nullish()
+})
+export const ListChatSessionsResponse = zod.array(ListChatSessionsResponseItem)
+
+
+/**
+ * @summary Start a new chat session with a downloaded model
+ */
+export const CreateChatSessionBody = zod.object({
+  "modelId": zod.string(),
+  "jobId": zod.string().nullish().describe('Optional completed fine-tuning job whose adapter should be applied on top of the base model')
+})
+
+export const CreateChatSessionResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string().describe('Human readable session title, e.g. first user message snippet'),
+  "modelId": zod.string(),
+  "modelName": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobName": zod.string().nullish().describe('Name of the fine-tuning job whose adapter is applied, if any'),
+  "simulated": zod.boolean().describe('True when replies are simulated because this isn\'t running on the user\'s Mac'),
+  "generating": zod.boolean().describe('True while the assistant reply is still streaming'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "messageCount": zod.number(),
+  "messages": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "timestamp": zod.coerce.date()
+})).describe('Full message history (empty in list responses)'),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary Get a chat session including full message history
+ */
+export const GetChatSessionParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const GetChatSessionResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string().describe('Human readable session title, e.g. first user message snippet'),
+  "modelId": zod.string(),
+  "modelName": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobName": zod.string().nullish().describe('Name of the fine-tuning job whose adapter is applied, if any'),
+  "simulated": zod.boolean().describe('True when replies are simulated because this isn\'t running on the user\'s Mac'),
+  "generating": zod.boolean().describe('True while the assistant reply is still streaming'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "messageCount": zod.number(),
+  "messages": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "timestamp": zod.coerce.date()
+})).describe('Full message history (empty in list responses)'),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * @summary Delete a chat session and its transcript file
+ */
+export const DeleteChatSessionParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const DeleteChatSessionResponse = zod.void()
+
+
+/**
+ * Returns immediately; the assistant reply streams over the session's SSE events endpoint.
+ * @summary Send a user message and start generating the reply
+ */
+export const SendChatMessageParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const SendChatMessageBody = zod.object({
+  "content": zod.string()
+})
+
+export const SendChatMessageResponse = zod.object({
+  "id": zod.string(),
+  "title": zod.string().describe('Human readable session title, e.g. first user message snippet'),
+  "modelId": zod.string(),
+  "modelName": zod.string(),
+  "jobId": zod.string().nullish(),
+  "jobName": zod.string().nullish().describe('Name of the fine-tuning job whose adapter is applied, if any'),
+  "simulated": zod.boolean().describe('True when replies are simulated because this isn\'t running on the user\'s Mac'),
+  "generating": zod.boolean().describe('True while the assistant reply is still streaming'),
+  "createdAt": zod.coerce.date(),
+  "updatedAt": zod.coerce.date(),
+  "messageCount": zod.number(),
+  "messages": zod.array(zod.object({
+  "role": zod.enum(['user', 'assistant']),
+  "content": zod.string(),
+  "timestamp": zod.coerce.date()
+})).describe('Full message history (empty in list responses)'),
+  "error": zod.string().nullish()
+})
+
+
+/**
+ * text/event-stream of ChatSession payloads
+ * @summary Server-sent events stream of the session, including the streaming assistant reply
+ */
+export const StreamChatEventsParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const StreamChatEventsResponse = zod.unknown()
+
+
+/**
+ * @summary Download the session transcript as a JSONL file
+ */
+export const DownloadChatTranscriptParams = zod.object({
+  "sessionId": zod.coerce.string()
+})
+
+export const DownloadChatTranscriptResponse = zod.unknown()
+
+
+/**
  * @summary List plain-language training presets
  */
 export const ListPresetsResponseItem = zod.object({

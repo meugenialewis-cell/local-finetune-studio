@@ -81,24 +81,53 @@ export function pushJobLog(job: JobState, message: string) {
   if (job.logs.length > 200) job.logs.shift();
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string;
+}
+
+export interface ChatSessionState {
+  id: string;
+  title: string;
+  modelId: string;
+  modelName: string;
+  jobId: string | null;
+  jobName: string | null;
+  adapterPath: string | null;
+  simulated: boolean;
+  generating: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messages: ChatMessage[];
+  error: string | null;
+  transcriptPath: string;
+}
+
 export const DATA_DIR = path.join(process.cwd(), "storage");
 export const DATASETS_DIR = path.join(DATA_DIR, "datasets");
 export const MODELS_DIR = path.join(DATA_DIR, "models");
 export const EXPORTS_DIR = path.join(DATA_DIR, "exports");
+// NOTE: must not be a dot-prefixed directory — Express refuses to serve
+// files whose path contains a dotfile segment via res.download().
+export const TRANSCRIPTS_DIR = path.join(DATA_DIR, "transcripts");
 
-for (const dir of [DATA_DIR, DATASETS_DIR, MODELS_DIR, EXPORTS_DIR]) {
+for (const dir of [DATA_DIR, DATASETS_DIR, MODELS_DIR, EXPORTS_DIR, TRANSCRIPTS_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
 export const models = new Map<string, ModelState>();
 export const datasets = new Map<string, DatasetState>();
 export const jobs = new Map<string, JobState>();
+export const chatSessions = new Map<string, ChatSessionState>();
 
 export const modelEvents = new EventEmitter();
 export const jobEvents = new EventEmitter();
+export const chatEvents = new EventEmitter();
 
 modelEvents.setMaxListeners(50);
 jobEvents.setMaxListeners(50);
+chatEvents.setMaxListeners(50);
 
 export function newId(prefix: string): string {
   return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
@@ -110,4 +139,8 @@ export function emitModelUpdate(model: ModelState) {
 
 export function emitJobUpdate(job: JobState) {
   jobEvents.emit(job.id, job);
+}
+
+export function emitChatUpdate(session: ChatSessionState) {
+  chatEvents.emit(session.id, session);
 }

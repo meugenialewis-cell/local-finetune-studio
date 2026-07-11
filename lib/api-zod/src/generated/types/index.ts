@@ -6,7 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from './chatMessage';
+export * from './chatMessageInput';
+export * from './chatRole';
+export * from './chatSession';
+export * from './chatSessionInput';
 export * from './dataset';
+export * from './datasetFromTranscriptsInput';
 export * from './datasetRow';
 export * from './datasetStatus';
 export * from './datasetUpload';
@@ -25,3 +31,4 @@ export * from './systemStatus';
 export * from './trainingJob';
 export * from './trainingJobInput';
 export * from './trainingPreset';
+export * from './transcriptSelection';

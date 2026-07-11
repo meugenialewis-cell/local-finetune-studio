@@ -16,6 +16,8 @@ tags:
     description: Dataset upload and preview
   - name: training
     description: Fine-tuning job configuration, execution and export
+  - name: chat
+    description: Chat sessions with local models, saved as transcripts
   - name: system
     description: Local environment/readiness checks
 paths:
@@ -187,6 +189,178 @@ paths:
       responses:
         "204":
           description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /datasets/from-transcripts:
+    post:
+      operationId: createDatasetFromTranscripts
+      tags: [datasets]
+      summary: Build a training dataset from curated chat transcripts
+      description: Converts selected exchanges from saved chat sessions into a prompt/response dataset, optionally framed as the model's own memories.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasetFromTranscriptsInput"
+      responses:
+        "201":
+          description: Dataset created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dataset"
+        "400":
+          description: Invalid selection
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /chat/sessions:
+    get:
+      operationId: listChatSessions
+      tags: [chat]
+      summary: List saved chat sessions (transcripts)
+      responses:
+        "200":
+          description: List of chat sessions without full message history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChatSession"
+    post:
+      operationId: createChatSession
+      tags: [chat]
+      summary: Start a new chat session with a downloaded model
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatSessionInput"
+      responses:
+        "201":
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSession"
+        "400":
+          description: Invalid session configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /chat/sessions/{sessionId}:
+    get:
+      operationId: getChatSession
+      tags: [chat]
+      summary: Get a chat session including full message history
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      responses:
+        "200":
+          description: Session detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSession"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteChatSession
+      tags: [chat]
+      summary: Delete a chat session and its transcript file
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /chat/sessions/{sessionId}/messages:
+    post:
+      operationId: sendChatMessage
+      tags: [chat]
+      summary: Send a user message and start generating the reply
+      description: Returns immediately; the assistant reply streams over the session's SSE events endpoint.
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageInput"
+      responses:
+        "202":
+          description: Message accepted, reply generation started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatSession"
+        "400":
+          description: Invalid message or a reply is already being generated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /chat/sessions/{sessionId}/events:
+    get:
+      operationId: streamChatEvents
+      tags: [chat]
+      summary: Server-sent events stream of the session, including the streaming assistant reply
+      description: text/event-stream of ChatSession payloads
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      responses:
+        "200":
+          description: SSE stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+  /chat/sessions/{sessionId}/download:
+    get:
+      operationId: downloadChatTranscript
+      tags: [chat]
+      summary: Download the session transcript as a JSONL file
+      parameters:
+        - $ref: "#/components/parameters/SessionIdParam"
+      responses:
+        "200":
+          description: Transcript file download
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
         "404":
           description: Not found
           content:
@@ -376,6 +550,12 @@ components:
         type: string
     JobIdParam:
       name: jobId
+      in: path
+      required: true
+      schema:
+        type: string
+    SessionIdParam:
+      name: sessionId
       in: path
       required: true
       schema:
@@ -697,6 +877,125 @@ components:
         format:
           type: string
           enum: [ollama, gguf]
+
+    ChatRole:
+      type: string
+      enum: [user, assistant]
+
+    ChatMessage:
+      type: object
+      required:
+        - role
+        - content
+        - timestamp
+      properties:
+        role:
+          $ref: "#/components/schemas/ChatRole"
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ChatSessionInput:
+      type: object
+      required:
+        - modelId
+      properties:
+        modelId:
+          type: string
+        jobId:
+          type: ["string", "null"]
+          description: Optional completed fine-tuning job whose adapter should be applied on top of the base model
+
+    ChatMessageInput:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+
+    ChatSession:
+      type: object
+      required:
+        - id
+        - title
+        - modelId
+        - modelName
+        - simulated
+        - generating
+        - createdAt
+        - updatedAt
+        - messageCount
+        - messages
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+          description: Human readable session title, e.g. first user message snippet
+        modelId:
+          type: string
+        modelName:
+          type: string
+        jobId:
+          type: ["string", "null"]
+        jobName:
+          type: ["string", "null"]
+          description: Name of the fine-tuning job whose adapter is applied, if any
+        simulated:
+          type: boolean
+          description: True when replies are simulated because this isn't running on the user's Mac
+        generating:
+          type: boolean
+          description: True while the assistant reply is still streaming
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        messageCount:
+          type: integer
+        messages:
+          type: array
+          description: Full message history (empty in list responses)
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        error:
+          type: ["string", "null"]
+
+    TranscriptSelection:
+      type: object
+      required:
+        - sessionId
+        - exchangeIndices
+      properties:
+        sessionId:
+          type: string
+        exchangeIndices:
+          type: array
+          description: Zero-based indices of the kept user/assistant exchange pairs within the session
+          items:
+            type: integer
+
+    DatasetFromTranscriptsInput:
+      type: object
+      required:
+        - name
+        - memoryFraming
+        - selections
+      properties:
+        name:
+          type: string
+        memoryFraming:
+          type: boolean
+          description: When true, each example is framed as one of the model's own remembered experiences
+        selections:
+          type: array
+          items:
+            $ref: "#/components/schemas/TranscriptSelection"
 
     ErrorResponse:
       type: object

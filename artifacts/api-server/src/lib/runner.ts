@@ -2,7 +2,7 @@ import { spawn } from "child_process";
 import path from "path";
 
 export interface PyEvent {
-  type: "progress" | "done" | "error";
+  type: "progress" | "done" | "error" | "token";
   [key: string]: unknown;
 }
 

@@ -204,6 +204,72 @@ export interface ExportInput {
   format: ExportInputFormat;
 }
 
+export type ChatRole = typeof ChatRole[keyof typeof ChatRole];
+
+
+export const ChatRole = {
+  user: 'user',
+  assistant: 'assistant',
+} as const;
+
+export interface ChatMessage {
+  role: ChatRole;
+  content: string;
+  timestamp: string;
+}
+
+export interface ChatSessionInput {
+  modelId: string;
+  /**
+     * Optional completed fine-tuning job whose adapter should be applied on top of the base model
+     * @nullable
+     */
+  jobId?: string | null;
+}
+
+export interface ChatMessageInput {
+  content: string;
+}
+
+export interface ChatSession {
+  id: string;
+  /** Human readable session title, e.g. first user message snippet */
+  title: string;
+  modelId: string;
+  modelName: string;
+  /** @nullable */
+  jobId?: string | null;
+  /**
+     * Name of the fine-tuning job whose adapter is applied, if any
+     * @nullable
+     */
+  jobName?: string | null;
+  /** True when replies are simulated because this isn't running on the user's Mac */
+  simulated: boolean;
+  /** True while the assistant reply is still streaming */
+  generating: boolean;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  /** Full message history (empty in list responses) */
+  messages: ChatMessage[];
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface TranscriptSelection {
+  sessionId: string;
+  /** Zero-based indices of the kept user/assistant exchange pairs within the session */
+  exchangeIndices: number[];
+}
+
+export interface DatasetFromTranscriptsInput {
+  name: string;
+  /** When true, each example is framed as one of the model's own remembered experiences */
+  memoryFraming: boolean;
+  selections: TranscriptSelection[];
+}
+
 export interface ErrorResponse {
   error: string;
   suggestion?: string;

@@ -5,6 +5,7 @@ import modelsRouter from "./models";
 import datasetsRouter from "./datasets";
 import presetsRouter from "./presets";
 import jobsRouter from "./jobs";
+import chatRouter from "./chat";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(modelsRouter);
 router.use(datasetsRouter);
 router.use(presetsRouter);
 router.use(jobsRouter);
+router.use(chatRouter);
 
 export default router;

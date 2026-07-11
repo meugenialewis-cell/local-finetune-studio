@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
-import { getStreamModelDownloadEventsUrl, getStreamJobEventsUrl } from "@workspace/api-client-react";
-import type { Model, TrainingJob } from "@workspace/api-client-react";
+import {
+  getStreamModelDownloadEventsUrl,
+  getStreamJobEventsUrl,
+  getStreamChatEventsUrl,
+} from "@workspace/api-client-react";
+import type { Model, TrainingJob, ChatSession } from "@workspace/api-client-react";
 
 export function useModelDownloadSSE(modelId: string | undefined) {
   const [model, setModel] = useState<Partial<Model>>({});
@@ -30,6 +34,37 @@ export function useModelDownloadSSE(modelId: string | undefined) {
   }, [modelId]);
 
   return model;
+}
+
+export function useChatSessionSSE(sessionId: string | undefined | null) {
+  const [session, setSession] = useState<Partial<ChatSession>>({});
+
+  useEffect(() => {
+    setSession({});
+    if (!sessionId) return;
+
+    const url = getStreamChatEventsUrl(sessionId);
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        setSession(data);
+      } catch (e) {
+        console.error("Failed to parse SSE event", e);
+      }
+    };
+
+    eventSource.onerror = () => {
+      eventSource.close();
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [sessionId]);
+
+  return session;
 }
 
 export function useJobEventsSSE(jobId: string | undefined) {

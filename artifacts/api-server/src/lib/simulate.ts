@@ -1,4 +1,13 @@
-import { ModelState, JobState, emitModelUpdate, emitJobUpdate, jobs, pushJobLog } from "./store";
+import {
+  ModelState,
+  JobState,
+  ChatSessionState,
+  emitModelUpdate,
+  emitJobUpdate,
+  emitChatUpdate,
+  jobs,
+  pushJobLog,
+} from "./store";
 
 export function simulateModelDownload(model: ModelState, onDone: () => void) {
   model.status = "downloading";
@@ -115,4 +124,57 @@ export function simulateExport(job: JobState, format: "ollama" | "gguf") {
 
 export function findJob(id: string): JobState | undefined {
   return jobs.get(id);
+}
+
+const SIMULATED_REPLY_TEMPLATES = [
+  (modelName: string, userMessage: string) =>
+    `This is a simulated reply — you're in the cloud preview, so ${modelName} isn't actually running. When you start this app on your own Mac, this exact conversation flow runs real inference instead.\n\nThat said, everything else here is real: your message ("${truncate(userMessage, 80)}") is being saved to this session's transcript on disk, and you can curate it into a training dataset from the Transcripts panel.`,
+  (modelName: string, userMessage: string) =>
+    `Simulated response from ${modelName}. Real generation needs Apple Silicon with MLX installed, which this cloud preview doesn't have.\n\nYour side of the conversation still counts, though — "${truncate(userMessage, 80)}" is now part of this transcript, and transcripts are the raw material for the memory-to-dataset loop.`,
+  (modelName: string, userMessage: string) =>
+    `(${modelName}, simulated) I can't genuinely think about "${truncate(userMessage, 80)}" from inside the cloud preview — but on your Mac I would. The full pipeline you're testing right now — chat, auto-saved transcript, curation into a dataset, fine-tune — works identically with real replies once you run the app locally.`,
+];
+
+function truncate(text: string, max: number): string {
+  const clean = text.replace(/\s+/g, " ").trim();
+  return clean.length > max ? clean.slice(0, max) + "…" : clean;
+}
+
+/**
+ * Streams a clearly-labeled fake assistant reply word by word, mirroring the
+ * shape of real token streaming so the chat UI behaves identically in the
+ * cloud preview and on the user's Mac.
+ */
+export function simulateChatReply(session: ChatSessionState, onDone: () => void) {
+  const lastUser = [...session.messages].reverse().find((m) => m.role === "user");
+  const template =
+    SIMULATED_REPLY_TEMPLATES[session.messages.length % SIMULATED_REPLY_TEMPLATES.length]!;
+  const fullText = template(session.modelName, lastUser?.content ?? "");
+  const words = fullText.split(/(?<=\s)/);
+
+  const assistantMessage = {
+    role: "assistant" as const,
+    content: "",
+    timestamp: new Date().toISOString(),
+  };
+  session.messages.push(assistantMessage);
+
+  let i = 0;
+  const interval = setInterval(() => {
+    // Stop if the session was deleted mid-generation.
+    if (!session.generating) {
+      clearInterval(interval);
+      return;
+    }
+    assistantMessage.content += words[i] ?? "";
+    i++;
+    emitChatUpdate(session);
+    if (i >= words.length) {
+      clearInterval(interval);
+      session.generating = false;
+      session.updatedAt = new Date().toISOString();
+      emitChatUpdate(session);
+      onDone();
+    }
+  }, 40);
 }
