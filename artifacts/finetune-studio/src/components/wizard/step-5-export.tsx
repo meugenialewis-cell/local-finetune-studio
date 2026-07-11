@@ -1,8 +1,8 @@
 import { useWizard } from "./wizard-context";
-import { useGetJob, useExportJob, getGetJobQueryKey } from "@workspace/api-client-react";
+import { useGetJob, useExportJob, useGetModel, getGetJobQueryKey, getGetModelQueryKey } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Box, Download, Settings2, Package, ArrowRight, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { Box, Download, Settings2, Package, ArrowRight, RotateCcw, Info } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 
 export function Step5Export() {
@@ -17,8 +17,27 @@ export function Step5Export() {
       },
     },
   });
+  const { data: model } = useGetModel(job?.modelId || "", {
+    query: {
+      enabled: !!job?.modelId,
+      queryKey: getGetModelQueryKey(job?.modelId || ""),
+    },
+  });
   const exportJob = useExportJob();
   const [format, setFormat] = useState<"gguf" | "ollama">("gguf");
+
+  const exportFormats = model?.exportFormats;
+  const ggufAvailable = !exportFormats || exportFormats.includes("gguf");
+  const ollamaAvailable = !exportFormats || exportFormats.includes("ollama");
+  const noExportAvailable = !!exportFormats && exportFormats.length === 0;
+
+  // If the selected format isn't available for this model's architecture,
+  // switch to one that is.
+  useEffect(() => {
+    if (!exportFormats || exportFormats.length === 0) return;
+    if (format === "gguf" && !ggufAvailable) setFormat("ollama");
+    if (format === "ollama" && !ollamaAvailable) setFormat("gguf");
+  }, [exportFormats, format, ggufAvailable, ollamaAvailable]);
 
   const handleExport = () => {
     if (!jobId) return;
@@ -37,6 +56,49 @@ export function Step5Export() {
   const isExporting = job.status === "exporting" || exportJob.isPending;
   const isExported = job.status === "exported";
 
+  if (noExportAvailable) {
+    return (
+      <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="mb-8">
+          <h2 className="text-2xl font-light tracking-tight mb-2">Training Complete</h2>
+          <p className="text-muted-foreground text-sm">Your fine-tuned adapter is saved. Here's how to use it with this model.</p>
+        </div>
+
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-6 mb-8">
+          <div className="flex items-start gap-3">
+            <Info className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h3 className="font-medium mb-2">GGUF and Ollama packaging aren't available for this architecture yet</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed mb-3">
+                {job.modelName} is a fast-weights model, and the packaging tools that produce GGUF files and Ollama
+                models don't support converting its fused weights yet. Nothing is lost — your fine-tuned adapter is
+                saved on your Mac and runs natively with MLX.
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                To chat with your fine-tuned model, run this in Terminal on your Mac:
+              </p>
+              <pre className="mt-2 rounded-md bg-background border border-border p-3 text-xs overflow-x-auto">
+                <code>python3 -m mlx_lm.generate --model &lt;base model folder&gt; --adapter-path &lt;adapter folder&gt; --prompt "Hello!"</code>
+              </pre>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-between pt-8 border-t border-border">
+          <Button variant="ghost" asChild>
+            <Link href="/history">View Job History</Link>
+          </Button>
+          <Button variant="outline" onClick={() => {
+            setCurrentStep(1);
+            window.location.reload(); // Simple state reset for new run
+          }}>
+            <RotateCcw className="w-4 h-4 mr-2" /> Start New Run
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-8">
@@ -46,10 +108,14 @@ export function Step5Export() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
         <div 
-          className={`border rounded-xl p-6 cursor-pointer transition-all ${
-            format === "gguf" ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/50"
+          className={`border rounded-xl p-6 transition-all ${
+            !ggufAvailable
+              ? "border-border bg-card opacity-50 cursor-not-allowed"
+              : format === "gguf"
+                ? "border-primary bg-primary/5 shadow-md cursor-pointer"
+                : "border-border bg-card hover:border-primary/50 cursor-pointer"
           }`}
-          onClick={() => !isExporting && !isExported && setFormat("gguf")}
+          onClick={() => ggufAvailable && !isExporting && !isExported && setFormat("gguf")}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className={`p-2 rounded bg-primary/20 text-primary`}>
@@ -65,13 +131,20 @@ export function Step5Export() {
             <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Highly optimized for Apple Silicon</li>
             <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Int4 quantization applied</li>
           </ul>
+          {!ggufAvailable && (
+            <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">Not available for this model's architecture.</p>
+          )}
         </div>
 
         <div 
-          className={`border rounded-xl p-6 cursor-pointer transition-all ${
-            format === "ollama" ? "border-primary bg-primary/5 shadow-md" : "border-border bg-card hover:border-primary/50"
+          className={`border rounded-xl p-6 transition-all ${
+            !ollamaAvailable
+              ? "border-border bg-card opacity-50 cursor-not-allowed"
+              : format === "ollama"
+                ? "border-primary bg-primary/5 shadow-md cursor-pointer"
+                : "border-border bg-card hover:border-primary/50 cursor-pointer"
           }`}
-          onClick={() => !isExporting && !isExported && setFormat("ollama")}
+          onClick={() => ollamaAvailable && !isExporting && !isExported && setFormat("ollama")}
         >
           <div className="flex items-center gap-3 mb-4">
             <div className={`p-2 rounded bg-primary/20 text-primary`}>
@@ -87,6 +160,9 @@ export function Step5Export() {
             <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Generates optimal Modelfile</li>
             <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Ready for API usage immediately</li>
           </ul>
+          {!ollamaAvailable && (
+            <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">Not available for this model's architecture.</p>
+          )}
         </div>
       </div>
 
@@ -122,6 +198,14 @@ export function Step5Export() {
               <Button size="lg" className="w-full" onClick={handleExport}>
                 Compile & Export as {format.toUpperCase()}
               </Button>
+            )}
+
+            {exportJob.isError && !isExporting && (
+              <p className="text-sm text-destructive">
+                {(exportJob.error as { data?: { message?: string } } | null)?.data?.message ||
+                  (exportJob.error as Error | null)?.message ||
+                  "Export failed. Please try again."}
+              </p>
             )}
           </div>
         )}

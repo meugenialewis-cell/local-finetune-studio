@@ -1,3 +1,7 @@
+export type ModelArchitecture = "transformer" | "ssm" | "linear-attention" | "hybrid";
+export type FineTuneSupport = "supported" | "experimental" | "none";
+export type ExportFormat = "ollama" | "gguf";
+
 export interface CatalogModel {
   id: string;
   name: string;
@@ -8,8 +12,26 @@ export interface CatalogModel {
   description: string;
   recommendedUse: string;
   memoryGuidance: string;
+  architecture: ModelArchitecture;
+  fineTuneSupport: FineTuneSupport;
+  // mlx_lm.fuse --export-gguf only supports llama/mistral/mixtral-family
+  // transformers, so other families keep only the Ollama Modelfile flow and
+  // fast-weights architectures ship with an empty list until upstream
+  // support lands.
+  exportFormats: ExportFormat[];
   repoId: string;
 }
+
+const TRANSFORMER_DEFAULTS = {
+  architecture: "transformer" as const,
+  fineTuneSupport: "supported" as const,
+  exportFormats: ["gguf", "ollama"] as ExportFormat[],
+};
+
+const FAST_WEIGHTS_DEFAULTS = {
+  fineTuneSupport: "experimental" as const,
+  exportFormats: [] as ExportFormat[],
+};
 
 export const MODEL_CATALOG: CatalogModel[] = [
   {
@@ -22,6 +44,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "Meta's smallest Llama model. Fast to download and fast to fine-tune.",
     recommendedUse: "Great first project — quick experiments and short, focused tasks.",
     memoryGuidance: "Comfortable on any modern Mac, even with other apps open.",
+    ...TRANSFORMER_DEFAULTS,
     repoId: "mlx-community/Llama-3.2-1B-Instruct-4bit",
   },
   {
@@ -34,6 +57,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "A step up from the 1B model with noticeably better answers, still light.",
     recommendedUse: "A solid everyday choice for chat-style assistants.",
     memoryGuidance: "Comfortable on any modern Mac.",
+    ...TRANSFORMER_DEFAULTS,
     repoId: "mlx-community/Llama-3.2-3B-Instruct-4bit",
   },
   {
@@ -46,6 +70,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "A compact, capable model that's especially strong at following instructions.",
     recommendedUse: "Good for structured tasks like summarizing or reformatting text.",
     memoryGuidance: "Comfortable on any modern Mac.",
+    ...TRANSFORMER_DEFAULTS,
+    exportFormats: ["ollama"],
     repoId: "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
   },
   {
@@ -58,6 +84,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "Google's compact Gemma model. Efficient and quick to fine-tune.",
     recommendedUse: "A great lightweight choice for chat and simple instruction-following.",
     memoryGuidance: "Comfortable on any modern Mac, even with other apps open.",
+    ...TRANSFORMER_DEFAULTS,
+    exportFormats: ["ollama"],
     repoId: "mlx-community/gemma-2-2b-it-4bit",
   },
   {
@@ -70,6 +98,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "Google's larger Gemma model, with stronger reasoning and richer answers.",
     recommendedUse: "A strong general-purpose assistant once you've tried a smaller model.",
     memoryGuidance: "Runs smoothly on your Mac's 128GB of memory.",
+    ...TRANSFORMER_DEFAULTS,
+    exportFormats: ["ollama"],
     repoId: "mlx-community/gemma-2-9b-it-4bit",
   },
   {
@@ -82,6 +112,8 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "A larger, noticeably smarter model with room for more nuanced fine-tuning.",
     recommendedUse: "Best for higher-quality assistants once you've tried a smaller model first.",
     memoryGuidance: "Runs smoothly on your Mac's 128GB of memory, with plenty of headroom.",
+    ...TRANSFORMER_DEFAULTS,
+    exportFormats: ["ollama"],
     repoId: "mlx-community/Qwen2.5-7B-Instruct-4bit",
   },
   {
@@ -94,6 +126,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "A well-rounded general-purpose model popular for creative and conversational text.",
     recommendedUse: "Good for storytelling, brainstorming, and open-ended chat.",
     memoryGuidance: "Runs smoothly on your Mac's 128GB of memory.",
+    ...TRANSFORMER_DEFAULTS,
     repoId: "mlx-community/Mistral-7B-Instruct-v0.3-4bit",
   },
   {
@@ -106,6 +139,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "Meta's flagship mid-size model — a strong all-around choice for serious projects.",
     recommendedUse: "A great target for a polished, capable personal assistant.",
     memoryGuidance: "Runs smoothly on your Mac's 128GB of memory.",
+    ...TRANSFORMER_DEFAULTS,
     repoId: "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
   },
   {
@@ -118,6 +152,7 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "A large mixture-of-experts model with strong reasoning ability.",
     recommendedUse: "For advanced projects once you're comfortable with the basics.",
     memoryGuidance: "Uses a large chunk of your Mac's 128GB — close other heavy apps while training.",
+    ...TRANSFORMER_DEFAULTS,
     repoId: "mlx-community/Mixtral-8x7B-Instruct-v0.1-4bit",
   },
   {
@@ -130,7 +165,84 @@ export const MODEL_CATALOG: CatalogModel[] = [
     description: "Moonshot AI's coding-focused Kimi model — the only Kimi that fits on a Mac. Strong at code and reasoning.",
     recommendedUse: "For advanced coding assistants, once you're comfortable with the basics.",
     memoryGuidance: "One of the biggest models here — uses a large portion of your Mac's 128GB, so close other heavy apps before training.",
+    ...TRANSFORMER_DEFAULTS,
+    exportFormats: ["ollama"],
     repoId: "mlx-community/Kimi-Dev-72B-4bit",
+  },
+  {
+    id: "mamba2-1.3b",
+    name: "Mamba2 1.3B",
+    family: "Mamba",
+    parameterCount: "1.3B",
+    sizeCategory: "small",
+    sizeGb: 0.8,
+    description:
+      "A fast-weights state space model. Instead of a growing attention cache, it keeps a fixed-size internal memory it updates as it reads — so long inputs don't slow it down.",
+    recommendedUse: "Try the fast-weights approach on quick experiments with long documents.",
+    memoryGuidance: "Tiny — comfortable on any modern Mac.",
+    architecture: "ssm",
+    ...FAST_WEIGHTS_DEFAULTS,
+    repoId: "mlx-community/mamba2-1.3b-4bit",
+  },
+  {
+    id: "falcon3-mamba-7b",
+    name: "Falcon3 Mamba 7B",
+    family: "Falcon",
+    parameterCount: "7B",
+    sizeCategory: "medium",
+    sizeGb: 4.1,
+    description:
+      "TII's instruction-tuned pure Mamba model — a full-size chat assistant built entirely on fast-weights state space layers, with no attention cache.",
+    recommendedUse: "A capable fast-weights chat model for long-context assistants.",
+    memoryGuidance: "Runs smoothly on your Mac's 128GB of memory.",
+    architecture: "ssm",
+    ...FAST_WEIGHTS_DEFAULTS,
+    repoId: "mlx-community/Falcon3-Mamba-7B-Instruct-4bits",
+  },
+  {
+    id: "mamba-codestral-7b",
+    name: "Mamba Codestral 7B",
+    family: "Mistral",
+    parameterCount: "7B",
+    sizeCategory: "medium",
+    sizeGb: 4.1,
+    description:
+      "Mistral's coding model built on the Mamba2 state space architecture — strong code generation with constant-memory long-context handling.",
+    recommendedUse: "Fine-tune a fast-weights model on your own code style or snippets.",
+    memoryGuidance: "Runs smoothly on your Mac's 128GB of memory.",
+    architecture: "ssm",
+    ...FAST_WEIGHTS_DEFAULTS,
+    repoId: "mlx-community/Mamba-Codestral-7B-v0.1-4bit",
+  },
+  {
+    id: "rwkv7-2.9b",
+    name: "RWKV-7 2.9B",
+    family: "RWKV",
+    parameterCount: "2.9B",
+    sizeCategory: "small",
+    sizeGb: 2.2,
+    description:
+      "The linear-attention RNN family closest to the original 'fast weights' idea: its recurrent state acts as an associative memory updated on every token.",
+    recommendedUse: "Explore the classic fast-weights architecture on chat-style data.",
+    memoryGuidance: "Comfortable on any modern Mac.",
+    architecture: "linear-attention",
+    ...FAST_WEIGHTS_DEFAULTS,
+    repoId: "mollysama/rwkv7-2.9B-g1d-20260131-ctx8192-mlx-6bit",
+  },
+  {
+    id: "jamba-reasoning-3b",
+    name: "Jamba Reasoning 3B",
+    family: "Jamba",
+    parameterCount: "3B",
+    sizeCategory: "small",
+    sizeGb: 1.8,
+    description:
+      "AI21's hybrid model that interleaves Mamba fast-weights layers with a few attention layers — a middle ground between transformers and pure state space models.",
+    recommendedUse: "A strong small reasoning model with fast-weights efficiency.",
+    memoryGuidance: "Comfortable on any modern Mac.",
+    architecture: "hybrid",
+    ...FAST_WEIGHTS_DEFAULTS,
+    repoId: "mlx-community/AI21-Jamba-Reasoning-3B-4bit",
   },
 ];
 

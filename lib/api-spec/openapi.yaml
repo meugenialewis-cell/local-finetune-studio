@@ -423,6 +423,27 @@ components:
       type: string
       enum: [not_downloaded, downloading, ready, failed]
 
+    ModelArchitecture:
+      type: string
+      enum: [transformer, ssm, linear-attention, hybrid]
+      description: >
+        Core architecture family. Non-transformer types are "fast weights"
+        architectures that keep a fixed-size internal memory state instead of
+        a growing KV cache (state space models, linear attention / RWKV, and
+        attention+SSM hybrids).
+
+    FineTuneSupport:
+      type: string
+      enum: [supported, experimental, none]
+      description: >
+        Whether LoRA fine-tuning of this model is a well-trodden path
+        (supported), possible but less battle-tested (experimental), or not
+        available (none).
+
+    ExportFormat:
+      type: string
+      enum: [ollama, gguf]
+
     Model:
       type: object
       required:
@@ -435,6 +456,9 @@ components:
         - description
         - recommendedUse
         - memoryGuidance
+        - architecture
+        - fineTuneSupport
+        - exportFormats
         - status
         - downloadProgress
       properties:
@@ -458,6 +482,15 @@ components:
         memoryGuidance:
           type: string
           description: Plain language guidance, e.g. "Comfortable on any modern Mac"
+        architecture:
+          $ref: "#/components/schemas/ModelArchitecture"
+        fineTuneSupport:
+          $ref: "#/components/schemas/FineTuneSupport"
+        exportFormats:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExportFormat"
+          description: Export formats this model's architecture supports; empty when GGUF/Ollama packaging is unavailable.
         status:
           $ref: "#/components/schemas/ModelStatus"
         downloadProgress:

@@ -44,6 +44,9 @@ export const ListModelsResponseItem = zod.object({
   "description": zod.string(),
   "recommendedUse": zod.string(),
   "memoryGuidance": zod.string().describe('Plain language guidance, e.g. \"Comfortable on any modern Mac\"'),
+  "architecture": zod.enum(['transformer', 'ssm', 'linear-attention', 'hybrid']).describe('Core architecture family. Non-transformer types are \"fast weights\" architectures that keep a fixed-size internal memory state instead of a growing KV cache (state space models, linear attention \/ RWKV, and attention+SSM hybrids).\n'),
+  "fineTuneSupport": zod.enum(['supported', 'experimental', 'none']).describe('Whether LoRA fine-tuning of this model is a well-trodden path (supported), possible but less battle-tested (experimental), or not available (none).\n'),
+  "exportFormats": zod.array(zod.enum(['ollama', 'gguf'])).describe('Export formats this model\'s architecture supports; empty when GGUF\/Ollama packaging is unavailable.'),
   "status": zod.enum(['not_downloaded', 'downloading', 'ready', 'failed']),
   "downloadProgress": zod.number().describe('0 to 100'),
   "error": zod.string().nullish()
@@ -68,6 +71,9 @@ export const GetModelResponse = zod.object({
   "description": zod.string(),
   "recommendedUse": zod.string(),
   "memoryGuidance": zod.string().describe('Plain language guidance, e.g. \"Comfortable on any modern Mac\"'),
+  "architecture": zod.enum(['transformer', 'ssm', 'linear-attention', 'hybrid']).describe('Core architecture family. Non-transformer types are \"fast weights\" architectures that keep a fixed-size internal memory state instead of a growing KV cache (state space models, linear attention \/ RWKV, and attention+SSM hybrids).\n'),
+  "fineTuneSupport": zod.enum(['supported', 'experimental', 'none']).describe('Whether LoRA fine-tuning of this model is a well-trodden path (supported), possible but less battle-tested (experimental), or not available (none).\n'),
+  "exportFormats": zod.array(zod.enum(['ollama', 'gguf'])).describe('Export formats this model\'s architecture supports; empty when GGUF\/Ollama packaging is unavailable.'),
   "status": zod.enum(['not_downloaded', 'downloading', 'ready', 'failed']),
   "downloadProgress": zod.number().describe('0 to 100'),
   "error": zod.string().nullish()
@@ -91,6 +97,9 @@ export const StartModelDownloadResponse = zod.object({
   "description": zod.string(),
   "recommendedUse": zod.string(),
   "memoryGuidance": zod.string().describe('Plain language guidance, e.g. \"Comfortable on any modern Mac\"'),
+  "architecture": zod.enum(['transformer', 'ssm', 'linear-attention', 'hybrid']).describe('Core architecture family. Non-transformer types are \"fast weights\" architectures that keep a fixed-size internal memory state instead of a growing KV cache (state space models, linear attention \/ RWKV, and attention+SSM hybrids).\n'),
+  "fineTuneSupport": zod.enum(['supported', 'experimental', 'none']).describe('Whether LoRA fine-tuning of this model is a well-trodden path (supported), possible but less battle-tested (experimental), or not available (none).\n'),
+  "exportFormats": zod.array(zod.enum(['ollama', 'gguf'])).describe('Export formats this model\'s architecture supports; empty when GGUF\/Ollama packaging is unavailable.'),
   "status": zod.enum(['not_downloaded', 'downloading', 'ready', 'failed']),
   "downloadProgress": zod.number().describe('0 to 100'),
   "error": zod.string().nullish()

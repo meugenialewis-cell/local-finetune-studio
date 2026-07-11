@@ -13,6 +13,9 @@ export interface ModelState {
   description: string;
   recommendedUse: string;
   memoryGuidance: string;
+  architecture: "transformer" | "ssm" | "linear-attention" | "hybrid";
+  fineTuneSupport: "supported" | "experimental" | "none";
+  exportFormats: ("ollama" | "gguf")[];
   status: "not_downloaded" | "downloading" | "ready" | "failed";
   downloadProgress: number;
   error: string | null;

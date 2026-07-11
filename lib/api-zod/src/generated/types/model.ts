@@ -5,6 +5,9 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { ExportFormat } from './exportFormat';
+import type { FineTuneSupport } from './fineTuneSupport';
+import type { ModelArchitecture } from './modelArchitecture';
 import type { ModelSize } from './modelSize';
 import type { ModelStatus } from './modelStatus';
 
@@ -20,6 +23,10 @@ export interface Model {
   recommendedUse: string;
   /** Plain language guidance, e.g. "Comfortable on any modern Mac" */
   memoryGuidance: string;
+  architecture: ModelArchitecture;
+  fineTuneSupport: FineTuneSupport;
+  /** Export formats this model's architecture supports; empty when GGUF/Ollama packaging is unavailable. */
+  exportFormats: ExportFormat[];
   status: ModelStatus;
   /** 0 to 100 */
   downloadProgress: number;

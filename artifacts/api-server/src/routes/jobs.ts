@@ -78,6 +78,12 @@ router.post("/jobs", (req, res) => {
     res.status(400).json({ message: "This model hasn't finished downloading yet." });
     return;
   }
+  if (model.fineTuneSupport === "none") {
+    res.status(400).json({
+      message: `${model.name} can be downloaded and chatted with, but its architecture doesn't support LoRA fine-tuning yet. Please pick a different base model.`,
+    });
+    return;
+  }
   if (!dataset) {
     res.status(400).json({ message: "Please choose a valid dataset." });
     return;
@@ -122,6 +128,11 @@ router.post("/jobs", (req, res) => {
 
   const systemStatus = getSystemStatus();
   job.simulated = !systemStatus.trainingBackendReady;
+  if (model.fineTuneSupport === "experimental") {
+    job.logs.push(
+      `[${new Date().toLocaleTimeString()}] Note: ${model.name} uses a fast-weights architecture — LoRA fine-tuning for it is experimental, so keep an eye on the loss curve.`,
+    );
+  }
   jobs.set(id, job);
 
   if (systemStatus.trainingBackendReady && model.localPath && dataset.filePath) {
@@ -277,9 +288,19 @@ router.post("/jobs/:jobId/export", (req, res) => {
     return;
   }
 
+  const model = models.get(job.modelId);
+  if (model && !model.exportFormats.includes(parsed.data.format)) {
+    res.status(400).json({
+      message:
+        model.exportFormats.length === 0
+          ? `${model.name} uses a fast-weights architecture that GGUF/Ollama packaging doesn't support yet. Your fine-tuned adapter is still saved and runs with MLX on your Mac.`
+          : `${model.name} can't be exported as ${parsed.data.format.toUpperCase()}. Available formats: ${model.exportFormats.join(", ").toUpperCase()}.`,
+    });
+    return;
+  }
+
   const systemStatus = getSystemStatus();
   if (systemStatus.trainingBackendReady && job.adapterPath && !job.adapterPath.startsWith("simulated://")) {
-    const model = models.get(job.modelId);
     runRealExport(job, model?.localPath ?? "", job.adapterPath, parsed.data.format);
   } else {
     simulateExport(job, parsed.data.format);

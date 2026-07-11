@@ -39,6 +39,39 @@ export const ModelStatus = {
   failed: 'failed',
 } as const;
 
+/**
+ * Core architecture family. Non-transformer types are "fast weights" architectures that keep a fixed-size internal memory state instead of a growing KV cache (state space models, linear attention / RWKV, and attention+SSM hybrids).
+ */
+export type ModelArchitecture = typeof ModelArchitecture[keyof typeof ModelArchitecture];
+
+
+export const ModelArchitecture = {
+  transformer: 'transformer',
+  ssm: 'ssm',
+  'linear-attention': 'linear-attention',
+  hybrid: 'hybrid',
+} as const;
+
+/**
+ * Whether LoRA fine-tuning of this model is a well-trodden path (supported), possible but less battle-tested (experimental), or not available (none).
+ */
+export type FineTuneSupport = typeof FineTuneSupport[keyof typeof FineTuneSupport];
+
+
+export const FineTuneSupport = {
+  supported: 'supported',
+  experimental: 'experimental',
+  none: 'none',
+} as const;
+
+export type ExportFormat = typeof ExportFormat[keyof typeof ExportFormat];
+
+
+export const ExportFormat = {
+  ollama: 'ollama',
+  gguf: 'gguf',
+} as const;
+
 export interface Model {
   id: string;
   name: string;
@@ -51,6 +84,10 @@ export interface Model {
   recommendedUse: string;
   /** Plain language guidance, e.g. "Comfortable on any modern Mac" */
   memoryGuidance: string;
+  architecture: ModelArchitecture;
+  fineTuneSupport: FineTuneSupport;
+  /** Export formats this model's architecture supports; empty when GGUF/Ollama packaging is unavailable. */
+  exportFormats: ExportFormat[];
   status: ModelStatus;
   /** 0 to 100 */
   downloadProgress: number;
