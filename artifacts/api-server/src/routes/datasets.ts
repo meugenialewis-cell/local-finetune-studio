@@ -8,9 +8,14 @@ import {
   UploadDatasetResponse,
   CreateDatasetFromTranscriptsBody,
   CreateDatasetFromTranscriptsResponse,
+  ConvertDocumentResponse,
+  CreateDatasetFromRowsBody,
+  CreateDatasetFromRowsResponse,
 } from "@workspace/api-zod";
 import { datasets, chatSessions, newId, DatasetState, DatasetRow, ChatMessage, DATASETS_DIR, persistHooks } from "../lib/store";
 import { parseDataset } from "../lib/datasetParser";
+import { extractDocument, isSupportedDocument } from "../lib/documentExtractor";
+import { convertBlocksToRows, DocumentConversionMode } from "../lib/documentConverter";
 import { loadTranscriptsFromDisk } from "../lib/transcripts";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
@@ -172,6 +177,96 @@ router.post("/datasets/from-transcripts", (req, res) => {
   persistHooks.datasets?.();
 
   res.status(201).json(CreateDatasetFromTranscriptsResponse.parse(serialize(dataset)));
+});
+
+router.post("/datasets/convert-document", upload.single("file"), async (req, res) => {
+  const file = req.file;
+  if (!file) {
+    res.status(400).json({ message: "No file was uploaded. Please choose a .docx, .pdf, .txt or .md file." });
+    return;
+  }
+  const rawMode = req.body?.mode as string | undefined;
+  if (rawMode !== "smart" && rawMode !== "verbatim") {
+    res.status(400).json({ message: "Pick a conversion mode: smart splitting or as-is." });
+    return;
+  }
+  const mode: DocumentConversionMode = rawMode;
+  if (!isSupportedDocument(file.originalname)) {
+    res.status(400).json({ message: "Unsupported document type. Please upload a .docx, .pdf, .txt or .md file." });
+    return;
+  }
+
+  const extraction = await extractDocument(file.originalname, file.buffer);
+  if (extraction.error) {
+    res.status(400).json({ message: extraction.error });
+    return;
+  }
+
+  const baseName = file.originalname.replace(/\.[^.]+$/, "");
+  const firstHeading = extraction.blocks.find((b) => b.kind === "heading")?.text;
+  const outcome = convertBlocksToRows(extraction.blocks, mode, firstHeading || baseName);
+  if (outcome.error) {
+    res.status(400).json({ message: outcome.error });
+    return;
+  }
+
+  res.json(
+    ConvertDocumentResponse.parse({
+      sourceName: file.originalname,
+      mode,
+      rows: outcome.rows,
+      warnings: [...extraction.warnings, ...outcome.warnings],
+    }),
+  );
+});
+
+router.post("/datasets/from-rows", (req, res) => {
+  const parsed = CreateDatasetFromRowsBody.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ message: "Invalid request. Provide a dataset name and at least one prompt/response pair." });
+    return;
+  }
+  const name = parsed.data.name.trim();
+  if (!name) {
+    res.status(400).json({ message: "Please give your dataset a name." });
+    return;
+  }
+  const rows: DatasetRow[] = [];
+  for (let i = 0; i < parsed.data.rows.length; i++) {
+    const row = parsed.data.rows[i]!;
+    const prompt = row.prompt.trim();
+    const response = row.response.trim();
+    if (!prompt || !response) {
+      res.status(400).json({ message: `Example ${i + 1} is missing a ${prompt ? "response" : "prompt"}. Fill it in or remove that example.` });
+      return;
+    }
+    rows.push({ prompt, response });
+  }
+  if (rows.length === 0) {
+    res.status(400).json({ message: "There are no examples to save. Keep at least one prompt/response pair." });
+    return;
+  }
+
+  const id = newId("ds");
+  const filePath = path.join(DATASETS_DIR, `${id}.jsonl`);
+  const contents = rows.map((r) => JSON.stringify(r)).join("\n");
+  fs.writeFileSync(filePath, contents);
+
+  const dataset: DatasetState = {
+    id,
+    name,
+    status: "ready",
+    rowCount: rows.length,
+    sizeBytes: Buffer.byteLength(contents, "utf-8"),
+    createdAt: new Date().toISOString(),
+    preview: rows.slice(0, 10),
+    error: null,
+    filePath,
+  };
+  datasets.set(id, dataset);
+  persistHooks.datasets?.();
+
+  res.status(201).json(CreateDatasetFromRowsResponse.parse(serialize(dataset)));
 });
 
 router.delete("/datasets/:datasetId", (req, res) => {

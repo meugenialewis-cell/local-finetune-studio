@@ -24,8 +24,11 @@ import type {
   ChatSession,
   ChatSessionInput,
   Dataset,
+  DatasetFromRowsInput,
   DatasetFromTranscriptsInput,
   DatasetUpload,
+  DocumentConversionResult,
+  DocumentConversionUpload,
   ErrorResponse,
   ExportInput,
   HealthStatus,
@@ -893,6 +896,153 @@ export const useCreateDatasetFromTranscripts = <TError = ErrorType<ErrorResponse
         TContext
       > => {
       return useMutation(getCreateDatasetFromTranscriptsMutationOptions(options));
+    }
+
+export const getConvertDocumentUrl = () => {
+
+
+
+
+  return `/api/datasets/convert-document`
+}
+
+/**
+ * Extracts text from a .docx, .pdf, .txt or .md document and converts it into prompt/response pairs using the chosen mode. Nothing is persisted; the proposed rows are returned for user review.
+ * @summary Convert a document into proposed dataset rows for review
+ */
+export const convertDocument = async (documentConversionUpload: DocumentConversionUpload, options?: RequestInit): Promise<DocumentConversionResult> => {
+    const formData = new FormData();
+formData.append(`file`, documentConversionUpload.file);
+formData.append(`mode`, documentConversionUpload.mode);
+
+  return customFetch<DocumentConversionResult>(getConvertDocumentUrl(),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getConvertDocumentMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertDocument>>, TError,{data: BodyType<DocumentConversionUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof convertDocument>>, TError,{data: BodyType<DocumentConversionUpload>}, TContext> => {
+
+const mutationKey = ['convertDocument'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof convertDocument>>, {data: BodyType<DocumentConversionUpload>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  convertDocument(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type ConvertDocumentMutationResult = NonNullable<Awaited<ReturnType<typeof convertDocument>>>
+    export type ConvertDocumentMutationBody = BodyType<DocumentConversionUpload>
+    export type ConvertDocumentMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Convert a document into proposed dataset rows for review
+ */
+export const useConvertDocument = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof convertDocument>>, TError,{data: BodyType<DocumentConversionUpload>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof convertDocument>>,
+        TError,
+        {data: BodyType<DocumentConversionUpload>},
+        TContext
+      > => {
+      return useMutation(getConvertDocumentMutationOptions(options));
+    }
+
+export const getCreateDatasetFromRowsUrl = () => {
+
+
+
+
+  return `/api/datasets/from-rows`
+}
+
+/**
+ * Persists user-reviewed rows (e.g. from a document conversion) as a normal dataset.
+ * @summary Create a dataset from reviewed prompt/response rows
+ */
+export const createDatasetFromRows = async (datasetFromRowsInput: DatasetFromRowsInput, options?: RequestInit): Promise<Dataset> => {
+
+  return customFetch<Dataset>(getCreateDatasetFromRowsUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    body: JSON.stringify(datasetFromRowsInput)
+  }
+);}
+
+
+
+
+
+export const getCreateDatasetFromRowsMutationOptions = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDatasetFromRows>>, TError,{data: BodyType<DatasetFromRowsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof createDatasetFromRows>>, TError,{data: BodyType<DatasetFromRowsInput>}, TContext> => {
+
+const mutationKey = ['createDatasetFromRows'];
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof createDatasetFromRows>>, {data: BodyType<DatasetFromRowsInput>}> = (props) => {
+          const {data} = props ?? {};
+
+          return  createDatasetFromRows(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type CreateDatasetFromRowsMutationResult = NonNullable<Awaited<ReturnType<typeof createDatasetFromRows>>>
+    export type CreateDatasetFromRowsMutationBody = BodyType<DatasetFromRowsInput>
+    export type CreateDatasetFromRowsMutationError = ErrorType<ErrorResponse>
+
+    /**
+ * @summary Create a dataset from reviewed prompt/response rows
+ */
+export const useCreateDatasetFromRows = <TError = ErrorType<ErrorResponse>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof createDatasetFromRows>>, TError,{data: BodyType<DatasetFromRowsInput>}, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof createDatasetFromRows>>,
+        TError,
+        {data: BodyType<DatasetFromRowsInput>},
+        TContext
+      > => {
+      return useMutation(getCreateDatasetFromRowsMutationOptions(options));
     }
 
 export const getListChatSessionsUrl = () => {

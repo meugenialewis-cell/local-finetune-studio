@@ -222,6 +222,58 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
 
+  /datasets/convert-document:
+    post:
+      operationId: convertDocument
+      tags: [datasets]
+      summary: Convert a document into proposed dataset rows for review
+      description: Extracts text from a .docx, .pdf, .txt or .md document and converts it into prompt/response pairs using the chosen mode. Nothing is persisted; the proposed rows are returned for user review.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/DocumentConversionUpload"
+      responses:
+        "200":
+          description: Proposed dataset rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DocumentConversionResult"
+        "400":
+          description: The document could not be converted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /datasets/from-rows:
+    post:
+      operationId: createDatasetFromRows
+      tags: [datasets]
+      summary: Create a dataset from reviewed prompt/response rows
+      description: Persists user-reviewed rows (e.g. from a document conversion) as a normal dataset.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DatasetFromRowsInput"
+      responses:
+        "201":
+          description: Dataset created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Dataset"
+        "400":
+          description: Invalid rows
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
   /chat/sessions:
     get:
       operationId: listChatSessions
@@ -996,6 +1048,59 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/TranscriptSelection"
+
+    DocumentConversionMode:
+      type: string
+      enum: [smart, verbatim]
+      description: smart = structure-aware splitting with chunk-size cleanup; verbatim = faithful as-is conversion driven entirely by the document's own formatting
+
+    DocumentConversionUpload:
+      type: object
+      required:
+        - file
+        - mode
+      properties:
+        file:
+          type: string
+          format: binary
+        mode:
+          $ref: "#/components/schemas/DocumentConversionMode"
+
+    DocumentConversionResult:
+      type: object
+      required:
+        - sourceName
+        - mode
+        - rows
+        - warnings
+      properties:
+        sourceName:
+          type: string
+          description: Original filename of the uploaded document
+        mode:
+          $ref: "#/components/schemas/DocumentConversionMode"
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatasetRow"
+        warnings:
+          type: array
+          items:
+            type: string
+          description: Non-fatal notes about the conversion (e.g. pages with no extractable text)
+
+    DatasetFromRowsInput:
+      type: object
+      required:
+        - name
+        - rows
+      properties:
+        name:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: "#/components/schemas/DatasetRow"
 
     ErrorResponse:
       type: object

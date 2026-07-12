@@ -270,6 +270,36 @@ export interface DatasetFromTranscriptsInput {
   selections: TranscriptSelection[];
 }
 
+/**
+ * smart = structure-aware splitting with chunk-size cleanup; verbatim = faithful as-is conversion driven entirely by the document's own formatting
+ */
+export type DocumentConversionMode = typeof DocumentConversionMode[keyof typeof DocumentConversionMode];
+
+
+export const DocumentConversionMode = {
+  smart: 'smart',
+  verbatim: 'verbatim',
+} as const;
+
+export interface DocumentConversionUpload {
+  file: Blob;
+  mode: DocumentConversionMode;
+}
+
+export interface DocumentConversionResult {
+  /** Original filename of the uploaded document */
+  sourceName: string;
+  mode: DocumentConversionMode;
+  rows: DatasetRow[];
+  /** Non-fatal notes about the conversion (e.g. pages with no extractable text) */
+  warnings: string[];
+}
+
+export interface DatasetFromRowsInput {
+  name: string;
+  rows: DatasetRow[];
+}
+
 export interface ErrorResponse {
   error: string;
   suggestion?: string;

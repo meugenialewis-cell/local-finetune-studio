@@ -220,6 +220,53 @@ export const CreateDatasetFromTranscriptsResponse = zod.object({
 
 
 /**
+ * Extracts text from a .docx, .pdf, .txt or .md document and converts it into prompt/response pairs using the chosen mode. Nothing is persisted; the proposed rows are returned for user review.
+ * @summary Convert a document into proposed dataset rows for review
+ */
+export const ConvertDocumentBody = zod.object({
+  "file": zod.instanceof(File),
+  "mode": zod.enum(['smart', 'verbatim']).describe('smart = structure-aware splitting with chunk-size cleanup; verbatim = faithful as-is conversion driven entirely by the document\'s own formatting')
+})
+
+export const ConvertDocumentResponse = zod.object({
+  "sourceName": zod.string().describe('Original filename of the uploaded document'),
+  "mode": zod.enum(['smart', 'verbatim']).describe('smart = structure-aware splitting with chunk-size cleanup; verbatim = faithful as-is conversion driven entirely by the document\'s own formatting'),
+  "rows": zod.array(zod.object({
+  "prompt": zod.string(),
+  "response": zod.string()
+})),
+  "warnings": zod.array(zod.string()).describe('Non-fatal notes about the conversion (e.g. pages with no extractable text)')
+})
+
+
+/**
+ * Persists user-reviewed rows (e.g. from a document conversion) as a normal dataset.
+ * @summary Create a dataset from reviewed prompt/response rows
+ */
+export const CreateDatasetFromRowsBody = zod.object({
+  "name": zod.string(),
+  "rows": zod.array(zod.object({
+  "prompt": zod.string(),
+  "response": zod.string()
+}))
+})
+
+export const CreateDatasetFromRowsResponse = zod.object({
+  "id": zod.string(),
+  "name": zod.string(),
+  "status": zod.enum(['validating', 'ready', 'invalid']),
+  "rowCount": zod.number(),
+  "sizeBytes": zod.number(),
+  "createdAt": zod.coerce.date(),
+  "preview": zod.array(zod.object({
+  "prompt": zod.string(),
+  "response": zod.string()
+})),
+  "error": zod.string().nullish()
+})
+
+
+/**
  * @summary List saved chat sessions (transcripts)
  */
 export const ListChatSessionsResponseItem = zod.object({

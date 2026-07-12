@@ -5,6 +5,14 @@ import { Button } from "@/components/ui/button";
 import { UploadCloud, FileText, CheckCircle2, AlertCircle, Trash2, Database } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
+import { DocumentImportDialog } from "./document-import-dialog";
+
+const DOCUMENT_EXTENSIONS = [".docx", ".pdf", ".txt", ".md", ".markdown"];
+
+function isDocumentFile(filename: string): boolean {
+  const lower = filename.toLowerCase();
+  return DOCUMENT_EXTENSIONS.some((ext) => lower.endsWith(ext));
+}
 
 export function Step2Dataset() {
   const { datasetId, setDatasetId, setCurrentStep } = useWizard();
@@ -15,14 +23,21 @@ export function Step2Dataset() {
   
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       handleUpload(e.target.files[0]);
     }
+    e.target.value = "";
   };
 
   const handleUpload = (file: File) => {
+    if (isDocumentFile(file.name)) {
+      uploadDataset.reset();
+      setDocumentFile(file);
+      return;
+    }
     uploadDataset.mutate({ data: { file, name: file.name } }, {
       onSuccess: (data) => {
         setDatasetId(data.id);
@@ -54,7 +69,7 @@ export function Step2Dataset() {
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="mb-8">
         <h2 className="text-2xl font-light tracking-tight mb-2">Upload Dataset</h2>
-        <p className="text-muted-foreground text-sm">Provide a JSONL file with prompt and response pairs to teach the model its new behavior.</p>
+        <p className="text-muted-foreground text-sm">Provide a JSONL/CSV file with prompt and response pairs — or upload a Word, PDF, text or Markdown document and we'll convert it into one.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
@@ -74,7 +89,7 @@ export function Step2Dataset() {
               type="file" 
               ref={fileInputRef} 
               className="hidden" 
-              accept=".jsonl,.json,.csv" 
+              accept=".jsonl,.json,.csv,.docx,.pdf,.txt,.md,.markdown" 
               onChange={handleFileChange}
             />
             
@@ -90,7 +105,7 @@ export function Step2Dataset() {
             ) : (
               <div>
                 <h3 className="text-lg font-medium mb-1">Click or drag file here</h3>
-                <p className="text-sm text-muted-foreground mb-4">Accepts CSV or JSONL format (max 50MB)</p>
+                <p className="text-sm text-muted-foreground mb-4">Accepts CSV or JSONL, or a Word, PDF, text or Markdown document to convert (max 50MB)</p>
                 <Button variant="secondary" size="sm">Select File</Button>
               </div>
             )}
@@ -224,6 +239,12 @@ export function Step2Dataset() {
           Continue to Preset
         </Button>
       </div>
+
+      <DocumentImportDialog
+        file={documentFile}
+        onClose={() => setDocumentFile(null)}
+        onCreated={(id) => setDatasetId(id)}
+      />
     </div>
   );
 }
