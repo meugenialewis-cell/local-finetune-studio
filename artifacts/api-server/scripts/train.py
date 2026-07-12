@@ -7,7 +7,11 @@ We shell out to the CLI rather than importing internal training functions
 because mlx-lm's Python training API has changed across releases, while the
 CLI's flags and stdout format have stayed stable.
 
-Usage: python3 train.py <model_dir> <dataset_jsonl> <output_dir> <epochs> <learning_rate> <lora_rank>
+Usage: python3 train.py <model_dir> <dataset_jsonl> <output_dir> <epochs> <learning_rate> <lora_rank> [resume_adapter_file]
+
+The optional resume_adapter_file is a path to a previous run's
+adapters.safetensors; when given, training continues from those weights
+(mlx_lm.lora's resume_adapter_file option) instead of starting fresh.
 
 Emits one JSON object per line to stdout, e.g.:
   {"type": "progress", "percent": 30, "epoch": 1, "totalEpochs": 3, "loss": 1.82, "message": "Training epoch 1 of 3"}
@@ -72,6 +76,14 @@ def main():
         sys.exit(1)
 
     model_dir, dataset_path, output_dir, epochs_str, learning_rate, lora_rank = sys.argv[1:7]
+    resume_adapter_file = sys.argv[7] if len(sys.argv) > 7 else None
+
+    if resume_adapter_file and not os.path.isfile(resume_adapter_file):
+        emit({
+            "type": "error",
+            "message": "The previous run's adapter file is missing from disk, so this run can't continue from it.",
+        })
+        sys.exit(2)
 
     try:
         import mlx_lm  # noqa: F401
@@ -124,6 +136,8 @@ def main():
         f.write(f"learning_rate: {learning_rate}\n")
         f.write(f"batch_size: {batch_size}\n")
         f.write(f"adapter_path: \"{output_dir}\"\n")
+        if resume_adapter_file:
+            f.write(f"resume_adapter_file: \"{resume_adapter_file}\"\n")
         f.write("steps_per_report: 1\n")
         f.write(f"save_every: {max(10, iters // 5)}\n")
         f.write("lora_parameters:\n")
@@ -134,7 +148,12 @@ def main():
 
     cmd = [sys.executable, "-m", "mlx_lm.lora", "--config", config_path]
 
-    emit({"type": "progress", "percent": 5, "message": f"Starting mlx_lm.lora training process (LoRA rank {rank})"})
+    start_message = (
+        f"Continuing training from the previous run's adapter (LoRA rank {rank})"
+        if resume_adapter_file
+        else f"Starting mlx_lm.lora training process (LoRA rank {rank})"
+    )
+    emit({"type": "progress", "percent": 5, "message": start_message})
 
     try:
         proc = subprocess.Popen(

@@ -12,6 +12,7 @@ import {
   pushJobLog,
 } from "./store";
 import { ensureSeeded } from "../routes/models";
+import { PRESET_CATALOG } from "./catalog";
 import { logger } from "./logger";
 
 // Registry snapshots live alongside the other durable data (transcripts,
@@ -163,6 +164,13 @@ function restoreJobs(): void {
       logs: Array.isArray(saved.logs) ? saved.logs : [],
       lossHistory: Array.isArray(saved.lossHistory) ? saved.lossHistory : [],
       cancelRequested: false,
+      // Jobs persisted before progressive fine-tuning existed lack these.
+      parentJobId: saved.parentJobId ?? null,
+      parentJobName: saved.parentJobName ?? null,
+      loraRank:
+        typeof saved.loraRank === "number"
+          ? saved.loraRank
+          : (PRESET_CATALOG.find((p) => p.id === saved.presetId)?.loraRank ?? 8),
     };
 
     if (["queued", "preparing", "training"].includes(job.status)) {

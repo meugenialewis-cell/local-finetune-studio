@@ -19,6 +19,8 @@ interface WizardState {
   setJobId: (id: string | null) => void;
   jobName: string;
   setJobName: (name: string) => void;
+  parentJobId: string | null;
+  setParentJobId: (id: string | null) => void;
 }
 
 const WizardContext = createContext<WizardState | undefined>(undefined);
@@ -36,6 +38,7 @@ export function WizardProvider({
   const [presetId, setPresetId] = useState<string | null>(initial?.presetId ?? null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobName, setJobName] = useState<string>("");
+  const [parentJobId, setParentJobId] = useState<string | null>(null);
 
   return (
     <WizardContext.Provider
@@ -52,6 +55,8 @@ export function WizardProvider({
         setJobId,
         jobName,
         setJobName,
+        parentJobId,
+        setParentJobId,
       }}
     >
       {children}

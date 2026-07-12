@@ -11,4 +11,9 @@ export interface TrainingJobInput {
   modelId: string;
   datasetId: string;
   presetId: string;
+  /**
+     * Optional id of a completed job whose adapter should be the starting point for this run (progressive fine-tuning). The base model must match the parent job's.
+     * @nullable
+     */
+  parentJobId?: string | null;
 }

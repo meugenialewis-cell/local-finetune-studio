@@ -1,6 +1,6 @@
 import { useListJobs } from "@workspace/api-client-react";
 import { format } from "date-fns";
-import { Activity, Clock, AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react";
+import { Activity, Clock, AlertTriangle, CheckCircle2, ChevronRight, GitBranch } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 
@@ -66,6 +66,13 @@ export default function History() {
                     <span className="opacity-70">Started:</span> <span className="text-foreground">{format(new Date(job.createdAt), "MMM d, h:mm a")}</span>
                   </div>
                 </div>
+
+                {job.parentJobName && (
+                  <div className="mt-2 text-xs text-primary flex items-center gap-1.5" data-testid={`lineage-${job.id}`}>
+                    <GitBranch className="w-3.5 h-3.5" />
+                    Continued from <span className="font-medium">{job.parentJobName}</span>
+                  </div>
+                )}
 
                 {job.status === "failed" && job.error && (
                   <div className="mt-3 text-sm text-destructive flex items-start gap-2 bg-destructive/5 p-3 rounded-md">

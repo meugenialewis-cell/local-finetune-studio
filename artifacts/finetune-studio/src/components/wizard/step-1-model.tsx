@@ -1,7 +1,7 @@
-import { useListModels, useStartModelDownload, getGetModelQueryKey, getListModelsQueryKey } from "@workspace/api-client-react";
+import { useListModels, useListJobs, useStartModelDownload, getGetModelQueryKey, getListModelsQueryKey } from "@workspace/api-client-react";
 import { useWizard } from "./wizard-context";
 import { useModelDownloadSSE } from "@/lib/sse";
-import { CheckCircle2, Download, AlertCircle, Box, HardDrive, Zap, Sparkles, ChevronDown } from "lucide-react";
+import { CheckCircle2, Download, AlertCircle, Box, HardDrive, Zap, Sparkles, ChevronDown, GitBranch, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -17,11 +17,17 @@ type ArchFilter = "all" | "transformer" | "fast-weights";
 
 export function Step1Model() {
   const { data: models, isLoading } = useListModels();
-  const { modelId, setModelId, setCurrentStep } = useWizard();
+  const { data: jobs } = useListJobs();
+  const { modelId, setModelId, setCurrentStep, parentJobId, setParentJobId } = useWizard();
   const startDownload = useStartModelDownload();
   const queryClient = useQueryClient();
   const [archFilter, setArchFilter] = useState<ArchFilter>("all");
   const [showExplainer, setShowExplainer] = useState(false);
+
+  const continuableJobs = (jobs ?? []).filter(
+    (j) => j.status === "completed" || j.status === "exported",
+  );
+  const parentJob = continuableJobs.find((j) => j.id === parentJobId) ?? null;
 
   const { data: selectedModelStream, connectionStatus } = useModelDownloadSSE(modelId || undefined);
   const reconnecting = connectionStatus === "reconnecting";
@@ -56,6 +62,83 @@ export function Step1Model() {
         <h2 className="text-2xl font-light tracking-tight mb-2">Select a Base Model</h2>
         <p className="text-muted-foreground text-sm">Choose the foundation for your fine-tuning. Larger models offer better reasoning but require more memory.</p>
       </div>
+
+      {continuableJobs.length > 0 && (
+        <div className="mb-6 rounded-xl border border-border bg-card/50 p-5">
+          <div className="flex items-center gap-2 mb-1">
+            <GitBranch className="w-4 h-4 text-primary" />
+            <h3 className="font-medium text-sm">Continue from a previous fine-tune</h3>
+            <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary">
+              Optional
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4 leading-relaxed">
+            Pick a completed run to build on what it already learned — the new training starts
+            from that run's result instead of the plain base model. Leave everything unselected to
+            start fresh.
+          </p>
+          <div className="grid grid-cols-1 gap-2">
+            {continuableJobs.map((j) => {
+              const isParent = parentJobId === j.id;
+              return (
+                <button
+                  key={j.id}
+                  data-testid={`continue-from-${j.id}`}
+                  onClick={() => {
+                    if (isParent) {
+                      setParentJobId(null);
+                    } else {
+                      setParentJobId(j.id);
+                      setModelId(j.modelId);
+                    }
+                  }}
+                  className={`w-full text-left rounded-lg border px-4 py-3 transition-colors flex items-center justify-between gap-3 ${
+                    isParent
+                      ? "border-primary bg-primary/5"
+                      : "border-border bg-card hover:border-primary/50"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate flex items-center gap-2">
+                      {j.name}
+                      {j.parentJobName && (
+                        <span className="text-[10px] font-normal text-muted-foreground truncate">
+                          (itself continued from {j.parentJobName})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {j.modelName} · trained on {j.datasetName}
+                    </div>
+                  </div>
+                  {isParent && (
+                    <span className="shrink-0 flex items-center gap-1 text-xs font-medium text-primary">
+                      <CheckCircle2 className="w-4 h-4" /> Selected
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {parentJob && (
+            <div className="mt-3 flex items-start justify-between gap-3 text-xs text-primary bg-primary/5 border border-primary/20 rounded-lg p-3">
+              <span className="leading-relaxed">
+                Continuing from <span className="font-medium">{parentJob.name}</span> — the base
+                model is set to {parentJob.modelName} to match it. Choosing a different model below
+                switches back to a fresh run.
+              </span>
+              <button
+                onClick={() => setParentJobId(null)}
+                className="shrink-0 p-0.5 rounded hover:bg-primary/10"
+                title="Start fresh instead"
+                data-testid="button-clear-parent"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2 mb-4">
         {([
@@ -125,7 +208,13 @@ export function Step1Model() {
                   : "border-border bg-card hover:border-primary/50 hover:bg-card/80"
               }`}
               onClick={() => {
-                if (!isDownloading) setModelId(model.id);
+                if (isDownloading) return;
+                setModelId(model.id);
+                // Picking a different base model breaks the lineage — a
+                // continued run must reuse its parent's base model.
+                if (parentJob && parentJob.modelId !== model.id) {
+                  setParentJobId(null);
+                }
               }}
             >
               <div className="flex justify-between items-start">

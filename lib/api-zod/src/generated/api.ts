@@ -451,6 +451,8 @@ export const ListJobsResponseItem = zod.object({
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
   "exportFormat": zod.string().nullish(),
+  "parentJobId": zod.string().nullish().describe('Id of the previous run this job continued from, if any'),
+  "parentJobName": zod.string().nullish().describe('Name of the previous run this job continued from, if any'),
   "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
   "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
@@ -464,7 +466,8 @@ export const CreateJobBody = zod.object({
   "name": zod.string(),
   "modelId": zod.string(),
   "datasetId": zod.string(),
-  "presetId": zod.string()
+  "presetId": zod.string(),
+  "parentJobId": zod.string().nullish().describe('Optional id of a completed job whose adapter should be the starting point for this run (progressive fine-tuning). The base model must match the parent job\'s.')
 })
 
 export const CreateJobResponse = zod.object({
@@ -488,6 +491,8 @@ export const CreateJobResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
   "exportFormat": zod.string().nullish(),
+  "parentJobId": zod.string().nullish().describe('Id of the previous run this job continued from, if any'),
+  "parentJobName": zod.string().nullish().describe('Name of the previous run this job continued from, if any'),
   "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
   "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
@@ -521,6 +526,8 @@ export const GetJobResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
   "exportFormat": zod.string().nullish(),
+  "parentJobId": zod.string().nullish().describe('Id of the previous run this job continued from, if any'),
+  "parentJobName": zod.string().nullish().describe('Name of the previous run this job continued from, if any'),
   "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
   "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
@@ -554,6 +561,8 @@ export const CancelJobResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
   "exportFormat": zod.string().nullish(),
+  "parentJobId": zod.string().nullish().describe('Id of the previous run this job continued from, if any'),
+  "parentJobName": zod.string().nullish().describe('Name of the previous run this job continued from, if any'),
   "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
   "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })
@@ -602,6 +611,8 @@ export const ExportJobResponse = zod.object({
   "createdAt": zod.coerce.date(),
   "exportReady": zod.boolean(),
   "exportFormat": zod.string().nullish(),
+  "parentJobId": zod.string().nullish().describe('Id of the previous run this job continued from, if any'),
+  "parentJobName": zod.string().nullish().describe('Name of the previous run this job continued from, if any'),
   "logs": zod.array(zod.string()).optional().describe('Recent human-readable log lines for this job (no raw stack traces)'),
   "lossHistory": zod.array(zod.number()).optional().describe('Loss value recorded at each training step, oldest first, for charting')
 })

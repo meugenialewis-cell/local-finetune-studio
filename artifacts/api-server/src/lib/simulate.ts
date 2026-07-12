@@ -48,6 +48,22 @@ export function simulateTraining(job: JobState) {
   let step = 0;
   let loss = 2.4;
 
+  // A continued run starts from the parent's adapter, so its loss curve
+  // should pick up near where the previous run left off rather than at the
+  // fresh-model starting point.
+  if (job.parentJobId) {
+    const parent = jobs.get(job.parentJobId);
+    const parentFinalLoss = parent?.lossHistory[parent.lossHistory.length - 1];
+    if (typeof parentFinalLoss === "number") {
+      loss = Math.max(0.3, parentFinalLoss + 0.15);
+    }
+    pushJobLog(
+      job,
+      `Continuing from "${job.parentJobName ?? "a previous run"}" — starting weights come from that run's adapter (simulated)`,
+    );
+    emitJobUpdate(job);
+  }
+
   const prepareTimeout = setTimeout(() => {
     prepareTimeouts.delete(job.id);
     if (job.cancelRequested) {

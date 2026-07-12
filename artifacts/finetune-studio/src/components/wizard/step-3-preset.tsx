@@ -1,17 +1,20 @@
 import { useWizard } from "./wizard-context";
-import { useListPresets, useCreateJob } from "@workspace/api-client-react";
+import { useListPresets, useListJobs, useCreateJob } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { Clock, Sliders, Play, BrainCircuit, AlertCircle } from "lucide-react";
+import { Clock, Sliders, Play, BrainCircuit, AlertCircle, GitBranch } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { setLastUsedPresetId } from "@/lib/last-preset";
 
 export function Step3Preset() {
-  const { presetId, setPresetId, setCurrentStep, modelId, datasetId, jobName, setJobName, setJobId } = useWizard();
+  const { presetId, setPresetId, setCurrentStep, modelId, datasetId, jobName, setJobName, setJobId, parentJobId } = useWizard();
   const { data: presets, isLoading } = useListPresets();
+  const { data: jobs } = useListJobs();
   const createJob = useCreateJob();
   const [localJobName, setLocalJobName] = useState(jobName || `Fine-tune ${new Date().toISOString().split('T')[0]}`);
+
+  const parentJob = parentJobId ? (jobs ?? []).find((j) => j.id === parentJobId) : undefined;
 
   const handleStartTraining = () => {
     if (!modelId || !datasetId || !presetId) return;
@@ -23,7 +26,8 @@ export function Step3Preset() {
         name: localJobName,
         modelId,
         datasetId,
-        presetId
+        presetId,
+        parentJobId: parentJobId ?? null
       }
     }, {
       onSuccess: (data) => {
@@ -40,6 +44,18 @@ export function Step3Preset() {
         <h2 className="text-2xl font-light tracking-tight mb-2">Configure Training</h2>
         <p className="text-muted-foreground text-sm">Select a training profile that matches your goals and time constraints.</p>
       </div>
+
+      {parentJob && (
+        <div className="mb-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground flex items-start gap-3">
+          <GitBranch className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+          <span className="leading-relaxed">
+            This run continues from <span className="font-medium text-foreground">{parentJob.name}</span> —
+            training starts from that run's result, so the model keeps what it learned and adds
+            your new dataset on top. To stay compatible, the LoRA rank of the previous run is kept
+            even if the preset below lists a different one.
+          </span>
+        </div>
+      )}
 
       <div className="mb-8 max-w-md">
         <Label htmlFor="jobName" className="mb-2 block">Name this training run</Label>
@@ -103,7 +119,10 @@ export function Step3Preset() {
           <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
           <div>
             <div className="font-medium mb-1">Failed to start training</div>
-            <div className="text-sm opacity-90">There was a problem initializing the training job. Please check your system status and try again.</div>
+            <div className="text-sm opacity-90">
+              {(createJob.error as { data?: { message?: string } } | null)?.data?.message ??
+                "There was a problem initializing the training job. Please check your system status and try again."}
+            </div>
           </div>
         </div>
       )}

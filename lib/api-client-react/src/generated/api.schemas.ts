@@ -156,6 +156,11 @@ export interface TrainingJobInput {
   modelId: string;
   datasetId: string;
   presetId: string;
+  /**
+     * Optional id of a completed job whose adapter should be the starting point for this run (progressive fine-tuning). The base model must match the parent job's.
+     * @nullable
+     */
+  parentJobId?: string | null;
 }
 
 export interface TrainingJob {
@@ -186,6 +191,16 @@ export interface TrainingJob {
   exportReady: boolean;
   /** @nullable */
   exportFormat?: string | null;
+  /**
+     * Id of the previous run this job continued from, if any
+     * @nullable
+     */
+  parentJobId?: string | null;
+  /**
+     * Name of the previous run this job continued from, if any
+     * @nullable
+     */
+  parentJobName?: string | null;
   /** Recent human-readable log lines for this job (no raw stack traces) */
   logs?: string[];
   /** Loss value recorded at each training step, oldest first, for charting */

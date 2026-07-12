@@ -43,6 +43,8 @@ function serialize(j: JobState) {
     createdAt: j.createdAt,
     exportReady: j.exportReady,
     exportFormat: j.exportFormat,
+    parentJobId: j.parentJobId ?? null,
+    parentJobName: j.parentJobName ?? null,
     logs: j.logs,
     lossHistory: j.lossHistory,
   };
@@ -65,7 +67,7 @@ router.get("/jobs/:jobId", (req, res) => {
 });
 
 router.post("/jobs", (req, res) => {
-  const { name, modelId, datasetId, presetId } = req.body ?? {};
+  const { name, modelId, datasetId, presetId, parentJobId } = req.body ?? {};
 
   const model = models.get(modelId);
   const dataset = datasets.get(datasetId);
@@ -98,6 +100,52 @@ router.post("/jobs", (req, res) => {
     return;
   }
 
+  const systemStatus = getSystemStatus();
+
+  // Progressive fine-tuning: optionally continue from a previous run's adapter.
+  let parentJob: JobState | null = null;
+  let resumeAdapterFile: string | null = null;
+  if (parentJobId) {
+    const parent = jobs.get(parentJobId);
+    if (!parent) {
+      res.status(400).json({ message: "The previous run you chose to continue from no longer exists." });
+      return;
+    }
+    if (parent.status !== "completed" && parent.status !== "exported") {
+      res.status(400).json({ message: `"${parent.name}" hasn't finished training yet, so it can't be continued from.` });
+      return;
+    }
+    if (parent.modelId !== model.id) {
+      res.status(400).json({
+        message: `"${parent.name}" was trained on ${parent.modelName}, so a run that continues from it must use ${parent.modelName} as its base model.`,
+      });
+      return;
+    }
+    if (!parent.adapterPath) {
+      res.status(400).json({
+        message: `The adapter files from "${parent.name}" are missing from disk, so it can't be continued from. Start a fresh run instead.`,
+      });
+      return;
+    }
+    if (systemStatus.trainingBackendReady) {
+      if (parent.adapterPath.startsWith("simulated://")) {
+        res.status(400).json({
+          message: `"${parent.name}" was a simulated run from the cloud preview, so there are no real adapter weights to continue from. Start a fresh run instead.`,
+        });
+        return;
+      }
+      const adapterFile = path.join(parent.adapterPath, "adapters.safetensors");
+      if (!fs.existsSync(adapterFile)) {
+        res.status(400).json({
+          message: `The adapter weights from "${parent.name}" are missing from disk, so it can't be continued from. Start a fresh run instead.`,
+        });
+        return;
+      }
+      resumeAdapterFile = adapterFile;
+    }
+    parentJob = parent;
+  }
+
   const id = newId("job");
   const job: JobState = {
     id,
@@ -122,23 +170,48 @@ router.post("/jobs", (req, res) => {
     exportFormat: null,
     exportPath: null,
     adapterPath: null,
+    loraRank: preset.loraRank,
+    parentJobId: parentJob?.id ?? null,
+    parentJobName: parentJob?.name ?? null,
     cancelRequested: false,
     logs: [],
     lossHistory: [],
   };
 
-  const systemStatus = getSystemStatus();
   job.simulated = !systemStatus.trainingBackendReady;
   if (model.fineTuneSupport === "experimental") {
     job.logs.push(
       `[${new Date().toLocaleTimeString()}] Note: ${model.name} uses a fast-weights architecture — LoRA fine-tuning for it is experimental, so keep an eye on the loss curve.`,
     );
   }
+
+  // When continuing a run, the LoRA rank must match the rank the parent
+  // actually trained with (the resumed weights have fixed dimensions). Use the
+  // rank persisted on the parent job — the parent may itself have inherited a
+  // rank different from its own preset's.
+  let effectiveLoraRank = preset.loraRank;
+  if (parentJob) {
+    const parentRank =
+      typeof parentJob.loraRank === "number"
+        ? parentJob.loraRank
+        : (PRESET_CATALOG.find((p) => p.id === parentJob.presetId)?.loraRank ?? preset.loraRank);
+    effectiveLoraRank = parentRank;
+    job.loraRank = effectiveLoraRank;
+    if (parentRank !== preset.loraRank) {
+      job.logs.push(
+        `[${new Date().toLocaleTimeString()}] Using LoRA rank ${effectiveLoraRank} to match "${parentJob.name}" — a continued run must keep the same adapter shape as the run it builds on.`,
+      );
+    }
+    job.logs.push(
+      `[${new Date().toLocaleTimeString()}] Continuing from "${parentJob.name}" — starting weights come from that run's adapter instead of the plain base model.`,
+    );
+  }
+
   jobs.set(id, job);
   persistHooks.jobs?.();
 
   if (systemStatus.trainingBackendReady && model.localPath && dataset.filePath) {
-    runRealTraining(job, model.localPath, dataset.filePath, preset);
+    runRealTraining(job, model.localPath, dataset.filePath, preset, effectiveLoraRank, resumeAdapterFile);
   } else {
     simulateTraining(job);
   }
@@ -151,18 +224,25 @@ function runRealTraining(
   modelDir: string,
   datasetPath: string,
   preset: (typeof PRESET_CATALOG)[number],
+  loraRank: number,
+  resumeAdapterFile: string | null,
 ) {
   job.status = "preparing";
-  job.statusMessage = "Preparing your dataset and loading the base model";
+  job.statusMessage = resumeAdapterFile
+    ? "Preparing your dataset and loading the previous run's adapter"
+    : "Preparing your dataset and loading the base model";
   job.progress = 2;
-  job.logs.push(`[${new Date().toLocaleTimeString()}] Preparing dataset and loading base model`);
+  job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.statusMessage}`);
   emitJobUpdate(job);
 
   const outputDir = path.join(MODELS_DIR, `${job.id}-adapter`);
 
+  const args = [modelDir, datasetPath, outputDir, String(preset.epochs), String(preset.learningRate), String(loraRank)];
+  if (resumeAdapterFile) args.push(resumeAdapterFile);
+
   const child = runPythonScript(
     "train.py",
-    [modelDir, datasetPath, outputDir, String(preset.epochs), String(preset.learningRate), String(preset.loraRank)],
+    args,
     (event) => {
       if (event.type === "progress") {
         job.status = "training";

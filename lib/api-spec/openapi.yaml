@@ -843,6 +843,9 @@ components:
           type: string
         presetId:
           type: string
+        parentJobId:
+          type: ["string", "null"]
+          description: Optional id of a completed job whose adapter should be the starting point for this run (progressive fine-tuning). The base model must match the parent job's.
 
     TrainingJob:
       type: object
@@ -910,6 +913,12 @@ components:
           type: boolean
         exportFormat:
           type: ["string", "null"]
+        parentJobId:
+          type: ["string", "null"]
+          description: Id of the previous run this job continued from, if any
+        parentJobName:
+          type: ["string", "null"]
+          description: Name of the previous run this job continued from, if any
         logs:
           type: array
           description: Recent human-readable log lines for this job (no raw stack traces)

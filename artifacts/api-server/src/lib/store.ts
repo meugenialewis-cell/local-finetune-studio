@@ -71,6 +71,12 @@ export interface JobState {
   exportFormat: "ollama" | "gguf" | null;
   exportPath: string | null;
   adapterPath: string | null;
+  /** The LoRA rank this job actually trained with. For continued runs this is
+   *  inherited from the parent (the resumed adapter has fixed dimensions), so
+   *  it can differ from the chosen preset's rank. */
+  loraRank: number;
+  parentJobId: string | null;
+  parentJobName: string | null;
   cancelRequested: boolean;
   logs: string[];
   lossHistory: number[];
