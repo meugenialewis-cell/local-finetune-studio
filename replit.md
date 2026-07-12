@@ -1,44 +1,59 @@
-# [Project name]
+# Local Fine-Tuning Studio
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
+A no-code app for downloading small AI models, fine-tuning them on the user's own example conversations, chatting with the result, and exporting it — designed to run for real on the user's Mac (Apple Silicon + MLX) while running in simulation mode on Replit.
 
 ## Run & Operate
 
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
+- Workflows: `artifacts/finetune-studio: web` (Vite frontend) and `artifacts/api-server: API Server` (Express, `/api` via localhost:80)
 - `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+- Local Mac run: `bash setup.sh` (or double-click `Start Fine-Tuning Studio.command`) — builds everything and serves frontend + API from one port (default 3939)
+- No database and no required env vars. `PORT`/`BASE_PATH` are set by Replit workflows and fall back to local defaults when unset.
 
 ## Stack
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+- pnpm workspaces, Node.js 24 (20+ locally), TypeScript 5.9
+- Frontend: React 19 + Vite 7 + Tailwind 4 + shadcn/radix, wouter, TanStack Query
+- API: Express 5, bundled with esbuild (`build.mjs` → `dist/index.mjs`)
+- API codegen: Orval from OpenAPI spec (`lib/api-spec`), Zod validation
+- Training/chat/export: Python scripts in `artifacts/api-server/scripts/` using MLX (`mlx-lm`) on Apple Silicon; simulation fallback otherwise
 
 ## Where things live
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
+- `artifacts/finetune-studio/` — frontend (pages in `src/pages`, SSE helper in `src/lib/sse.ts`)
+- `artifacts/api-server/src/routes/` — API routes (`models`, `datasets`, `jobs`, `chat`, `presets`, `system/status`, `healthz`)
+- `artifacts/api-server/src/lib/` — store, persistence, runner (real vs simulated), systemCheck, SSE heartbeat
+- `artifacts/api-server/scripts/` — `download_model.py`, `train.py`, `chat.py`, `export_model.py`
+- `artifacts/api-server/storage/` — all persisted data (gitignored): `state/` JSON registries, `transcripts/` JSONL chats, `datasets/`, `models/`, `exports/`
+- `setup.sh` + `Start Fine-Tuning Studio.command` — Mac one-click installer/launcher
+- `README.md` — non-coder install instructions (GitHub: meugenialewis-cell/local-finetune-studio)
 
 ## Architecture decisions
 
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
+- No database: state is persisted as JSON/JSONL files under `artifacts/api-server/storage/` so the app is fully self-contained on a Mac.
+- Real vs simulated execution is decided at runtime by hardware check (Apple Silicon + importable `mlx_lm`), not a flag — see `systemCheck.ts` and the runner.
+- The API server serves the built frontend (`../finetune-studio/dist/public`, override with `STATIC_DIR`) with an SPA fallback when the build exists, so local runs need only one port. On Replit this is inert since only `/api` is routed to it.
+- SSE endpoints send a `ping` heartbeat every 15s (`sseHeartbeat.ts`); the frontend auto-reconnects with backoff + stall watchdog (`src/lib/sse.ts`).
+- `pnpm-workspace.yaml` deliberately KEEPS darwin binary packages (esbuild/rollup/lightningcss/tailwind oxide) so `pnpm install` works on Macs — do not re-add darwin exclusions.
 
 ## Product
 
-_Describe the high-level user-facing capabilities of this app once they exist._
+- Model catalog (mlx-community 4-bit models sized for 128GB Macs), guided download with progress
+- Dataset upload + memory curation, one-click retrain
+- Fine-tuning jobs with live progress (SSE), presets
+- Chat with base vs fine-tuned model, transcripts persisted
+- Export fine-tuned models (GGUF/Ollama)
 
 ## User preferences
 
-_Populate as you build — explicit user instructions worth remembering across sessions._
+- User is a non-coder: all user-facing text (UI, README, launcher output) must be plain, friendly language with no jargon.
 
 ## Gotchas
 
-_Populate as you build — sharp edges, "always run X before Y" rules._
+- Vite/api-server `PORT` and `BASE_PATH` have local fallbacks but Replit workflows always set them — don't remove the fallbacks (local Mac runs depend on them).
+- The frontend calls the API with same-origin relative `/api/...` paths — keep it that way; it's what makes single-port local serving work.
+- Storage paths are relative to the api-server's cwd — always start the server from `artifacts/api-server/`.
+- Don't store user-servable files under dot-prefixed directories (Express blocks dotfile path segments).
 
 ## Pointers
 

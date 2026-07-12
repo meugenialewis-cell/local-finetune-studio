@@ -47,3 +47,6 @@ Thumbs.db
 # Replit
 .cache/
 .local/
+
+# Mac launcher's private tooling (Node runtime, pnpm, logs) — see setup.sh
+.local-tools/

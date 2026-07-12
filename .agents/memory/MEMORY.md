@@ -4,3 +4,4 @@
 - [E2E tests and server state](e2e-test-state-resets.md) — test plans must self-provision state via [API] steps; full dev-state reset needs rm state files + SIGKILL (SIGTERM flush recreates them).
 - [SSE proxy silent drop](sse-proxy-silent-drop.md) — outer Replit proxy never errors dead SSE streams; keep server ping heartbeat + client stall watchdog paired.
 - [E2E outage testing](e2e-outage-testing.md) — freeze with SIGSTOP/SIGCONT (never kill), sync via server-side connect log, run orchestrator + test concurrently in one notebook call.
+- [GitHub push workflow](github-push-workflow.md) — git commit is blocked mid-task; push committed history via connector token, commit working tree via GitHub Data API; SHA-divergence reconciliation recipe inside.
