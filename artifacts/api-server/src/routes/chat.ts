@@ -190,8 +190,10 @@ router.post("/chat/sessions/:sessionId/messages", (req, res) => {
 
 function startReply(session: ChatSessionState) {
   // Sessions rehydrated from older transcripts may be missing their adapter
-  // path — re-resolve it from the job if it's still around.
-  if (session.jobId && !session.adapterPath) {
+  // path, or carry a stale absolute path from before the app folder was moved
+  // or renamed. The job registry's adapterPath is repaired on restore, so when
+  // the job is still around, always prefer its copy.
+  if (session.jobId) {
     const job = jobs.get(session.jobId);
     if (job?.adapterPath) session.adapterPath = job.adapterPath;
   }

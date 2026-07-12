@@ -19,6 +19,8 @@ description: How to get uncommitted task work onto GitHub when local git commit 
 2. `git push origin main:refs/heads/tmp-sync` (new branch — allowed, uploads local objects).
 3. API `PATCH /git/refs/heads/main {sha: <local main sha>, force: true}` (remote-side, trees identical, nothing lost).
 4. API `DELETE /git/refs/heads/tmp-sync`.
-Afterwards remote == local and future plain pushes fast-forward again.
+Afterwards remote == local and future plain pushes fast-forward again. (Recipe executed successfully once: trees were byte-identical, force PATCH + tmp-branch delete worked as written.)
+
+**Gotcha:** `pkill -9 -f <pattern>` kills your own bash if any literal text in the command (e.g. a file path like `artifacts/api-server/...` inside a heredoc) matches the pattern — the `[-]` trick only protects the pattern string itself. Kill and edit in SEPARATE bash calls.
 
 **How to apply:** any task that says "push to GitHub" — check `git log` vs `origin/main` first; expect the divergence described above if a previous task used the API-commit path.

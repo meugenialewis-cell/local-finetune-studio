@@ -2,6 +2,9 @@ import fs from "fs";
 import path from "path";
 import {
   DATA_DIR,
+  DATASETS_DIR,
+  MODELS_DIR,
+  EXPORTS_DIR,
   models,
   datasets,
   jobs,
@@ -108,6 +111,20 @@ function pathStillExists(p: string | null | undefined): boolean {
   return fs.existsSync(p);
 }
 
+/**
+ * Saved paths are absolute, so they break when the app folder is moved,
+ * renamed, or re-downloaded (e.g. "my-app" becomes "my-app-2"). If the saved
+ * path no longer exists but a file/folder with the same name exists in the
+ * current storage location, repair the path instead of declaring the data lost.
+ */
+function repairPath(p: string | null | undefined, currentDir: string): string | null {
+  if (!p) return null;
+  if (!isRealPath(p)) return p; // simulated:// paths are left alone
+  if (fs.existsSync(p)) return p;
+  const candidate = path.join(currentDir, path.basename(p));
+  return fs.existsSync(candidate) ? candidate : p;
+}
+
 function restoreModels(): void {
   ensureSeeded();
   for (const saved of readSnapshot<ModelState>("models")) {
@@ -117,10 +134,11 @@ function restoreModels(): void {
     if (!model) continue;
 
     if (saved.status === "ready") {
-      if (pathStillExists(saved.localPath)) {
+      const localPath = repairPath(saved.localPath, MODELS_DIR);
+      if (pathStillExists(localPath)) {
         model.status = "ready";
         model.downloadProgress = 100;
-        model.localPath = saved.localPath;
+        model.localPath = localPath;
         model.error = null;
       } else {
         // Weights were deleted from disk — honestly report "not downloaded".
@@ -146,6 +164,7 @@ function restoreDatasets(): void {
   for (const saved of readSnapshot<DatasetState>("datasets")) {
     if (!saved?.id) continue;
     const dataset: DatasetState = { ...saved };
+    dataset.filePath = repairPath(dataset.filePath, DATASETS_DIR);
     if (dataset.status === "ready" && !pathStillExists(dataset.filePath)) {
       dataset.status = "invalid";
       dataset.error =
@@ -188,10 +207,12 @@ function restoreJobs(): void {
       pushJobLog(job, "Export was interrupted by an app restart");
     }
 
+    job.adapterPath = repairPath(job.adapterPath, MODELS_DIR);
     if (job.adapterPath && !pathStillExists(job.adapterPath)) {
       job.adapterPath = null;
       pushJobLog(job, "The fine-tuned adapter files for this job are missing from disk");
     }
+    job.exportPath = repairPath(job.exportPath, EXPORTS_DIR);
     if (job.exportReady && !pathStillExists(job.exportPath)) {
       job.exportReady = false;
       job.exportPath = null;

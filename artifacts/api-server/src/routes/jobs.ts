@@ -95,6 +95,23 @@ router.post("/jobs", (req, res) => {
     res.status(400).json({ message: "This dataset isn't ready to use. Please fix or re-upload it." });
     return;
   }
+  // A dataset can be marked "ready" while its file has since vanished from
+  // disk (the app folder was moved, replaced, or re-downloaded). Catch that
+  // here with a clear message instead of failing deep inside training.
+  if (
+    dataset.filePath &&
+    !dataset.filePath.startsWith("simulated://") &&
+    !fs.existsSync(dataset.filePath)
+  ) {
+    dataset.status = "invalid";
+    dataset.error = "This dataset's file is missing from disk. Delete it and re-upload or re-create it.";
+    dataset.filePath = null;
+    persistHooks.datasets?.();
+    res.status(400).json({
+      message: `The file behind "${dataset.name}" is missing from your computer — this can happen when the app folder is moved, replaced, or re-downloaded. Please delete that dataset, create it again, and start a new training run.`,
+    });
+    return;
+  }
   if (!preset) {
     res.status(400).json({ message: "Please choose a valid training preset." });
     return;
