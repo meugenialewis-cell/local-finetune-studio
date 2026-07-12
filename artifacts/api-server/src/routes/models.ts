@@ -7,6 +7,7 @@ import {
 import path from "path";
 import { MODEL_CATALOG } from "../lib/catalog";
 import { models, modelEvents, ModelState, MODELS_DIR, emitModelUpdate } from "../lib/store";
+import { startSseHeartbeat } from "../lib/sseHeartbeat";
 import { getSystemStatus } from "../lib/systemCheck";
 import { simulateModelDownload } from "../lib/simulate";
 import { runPythonScript } from "../lib/runner";
@@ -149,6 +150,7 @@ router.get("/models/:modelId/download/events", (req, res) => {
     res.write(`data: ${JSON.stringify(serialize(m))}\n\n`);
   };
   send(model);
+  const stopHeartbeat = startSseHeartbeat(res);
 
   const listener = (m: ModelState) => {
     send(m);
@@ -159,6 +161,7 @@ router.get("/models/:modelId/download/events", (req, res) => {
   modelEvents.on(modelId, listener);
 
   const cleanup = () => {
+    stopHeartbeat();
     modelEvents.off(modelId, listener);
     res.end();
   };

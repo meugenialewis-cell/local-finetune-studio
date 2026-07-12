@@ -10,6 +10,7 @@ import {
   ExportJobBody,
 } from "@workspace/api-zod";
 import { jobs, models, datasets, newId, JobState, jobEvents, EXPORTS_DIR, MODELS_DIR, emitJobUpdate, persistHooks } from "../lib/store";
+import { startSseHeartbeat } from "../lib/sseHeartbeat";
 import { PRESET_CATALOG } from "../lib/catalog";
 import { simulateTraining, simulateExport } from "../lib/simulate";
 import { getSystemStatus } from "../lib/systemCheck";
@@ -256,6 +257,7 @@ router.get("/jobs/:jobId/events", (req, res) => {
     res.write(`data: ${JSON.stringify(serialize(j))}\n\n`);
   };
   send(job);
+  const stopHeartbeat = startSseHeartbeat(res);
 
   const terminal = ["completed", "failed", "cancelled", "exported"];
   const listener = (j: JobState) => {
@@ -267,6 +269,7 @@ router.get("/jobs/:jobId/events", (req, res) => {
   jobEvents.on(jobId, listener);
 
   const cleanup = () => {
+    stopHeartbeat();
     jobEvents.off(jobId, listener);
     res.end();
   };

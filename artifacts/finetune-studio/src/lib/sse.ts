@@ -10,6 +10,11 @@ export type SSEConnectionStatus = "connecting" | "open" | "reconnecting" | "done
 
 const INITIAL_RETRY_DELAY_MS = 1000;
 const MAX_RETRY_DELAY_MS = 15000;
+// The server sends a `ping` event every 15s. If we see no activity for this
+// long, the connection has silently stalled (proxies can keep the socket open
+// after the upstream dies without surfacing an error) — force a reconnect.
+const STALL_TIMEOUT_MS = 40000;
+const STALL_CHECK_INTERVAL_MS = 5000;
 
 /**
  * Shared SSE hook with automatic reconnect.
@@ -41,28 +46,57 @@ function useReconnectingSSE<T>(
     let disposed = false;
     let eventSource: EventSource | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let stallTimer: ReturnType<typeof setInterval> | null = null;
     let attempt = 0;
     let reachedTerminal = false;
+    let lastActivity = Date.now();
+
+    const teardown = () => {
+      if (stallTimer) {
+        clearInterval(stallTimer);
+        stallTimer = null;
+      }
+      eventSource?.close();
+      eventSource = null;
+    };
+
+    const scheduleReconnect = () => {
+      if (disposed || reachedTerminal) return;
+      setConnectionStatus("reconnecting");
+      const backoff = Math.min(INITIAL_RETRY_DELAY_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
+      const jitter = Math.random() * 300;
+      attempt += 1;
+      retryTimer = setTimeout(connect, backoff + jitter);
+    };
 
     const connect = () => {
       if (disposed) return;
+      lastActivity = Date.now();
       eventSource = new EventSource(url);
+      const markActivity = () => {
+        lastActivity = Date.now();
+      };
 
       eventSource.onopen = () => {
         if (disposed) return;
+        markActivity();
         attempt = 0;
         setConnectionStatus("open");
       };
 
+      // Server heartbeat — carries no data, only proves the stream is alive.
+      eventSource.addEventListener("ping", markActivity);
+
       eventSource.onmessage = (event) => {
         if (disposed) return;
+        markActivity();
         try {
           const parsed = JSON.parse(event.data) as T;
           setData(parsed);
           if (isTerminalRef.current?.(parsed)) {
             reachedTerminal = true;
             setConnectionStatus("done");
-            eventSource?.close();
+            teardown();
           }
         } catch (e) {
           console.error("Failed to parse SSE event", e);
@@ -70,14 +104,17 @@ function useReconnectingSSE<T>(
       };
 
       eventSource.onerror = () => {
-        eventSource?.close();
-        if (disposed || reachedTerminal) return;
-        setConnectionStatus("reconnecting");
-        const backoff = Math.min(INITIAL_RETRY_DELAY_MS * 2 ** attempt, MAX_RETRY_DELAY_MS);
-        const jitter = Math.random() * 300;
-        attempt += 1;
-        retryTimer = setTimeout(connect, backoff + jitter);
+        teardown();
+        scheduleReconnect();
       };
+
+      // Watch for silent stalls that never trigger onerror.
+      stallTimer = setInterval(() => {
+        if (Date.now() - lastActivity > STALL_TIMEOUT_MS) {
+          teardown();
+          scheduleReconnect();
+        }
+      }, STALL_CHECK_INTERVAL_MS);
     };
 
     connect();
@@ -85,7 +122,7 @@ function useReconnectingSSE<T>(
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
-      eventSource?.close();
+      teardown();
     };
   }, [url]);
 

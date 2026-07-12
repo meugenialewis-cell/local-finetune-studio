@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import fs from "fs";
 import os from "os";
 import path from "path";
+import { startSseHeartbeat } from "../lib/sseHeartbeat";
 import {
   ListChatSessionsResponse,
   GetChatSessionResponse,
@@ -279,6 +280,7 @@ router.get("/chat/sessions/:sessionId/events", (req, res) => {
     res.write(`data: ${JSON.stringify(serialize(s, true))}\n\n`);
   };
   send(session);
+  const stopHeartbeat = startSseHeartbeat(res);
 
   const listener = (s: ChatSessionState) => {
     send(s);
@@ -286,6 +288,7 @@ router.get("/chat/sessions/:sessionId/events", (req, res) => {
   chatEvents.on(sessionId, listener);
 
   req.on("close", () => {
+    stopHeartbeat();
     chatEvents.off(sessionId, listener);
     res.end();
   });
