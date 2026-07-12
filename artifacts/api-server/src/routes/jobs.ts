@@ -304,6 +304,10 @@ router.post("/jobs/:jobId/export", (req, res) => {
   }
 
   const systemStatus = getSystemStatus();
+  // A fresh export attempt clears any error and stale artifact from a previous attempt.
+  job.error = null;
+  job.exportReady = false;
+  job.exportPath = null;
   if (systemStatus.trainingBackendReady && job.adapterPath && !job.adapterPath.startsWith("simulated://")) {
     runRealExport(job, model?.localPath ?? "", job.adapterPath, parsed.data.format);
   } else {
@@ -341,7 +345,7 @@ function runRealExport(job: JobState, modelDir: string, adapterDir: string, form
         emitJobUpdate(job);
       } else if (event.type === "error") {
         job.status = "completed";
-        job.error = (event.message as string) ?? "Export failed on your Mac.";
+        job.error = (event.message as string) || "Export failed on your Mac.";
         job.statusMessage = "Export failed — you can try again";
         job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
         emitJobUpdate(job);

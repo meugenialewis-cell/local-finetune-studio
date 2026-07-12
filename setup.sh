@@ -127,20 +127,23 @@ else
 fi
 
 # ----------------------------------------------------------------------------
-# Step 4: build the app (skipped when already built)
+# Step 4: build the app (skipped when nothing changed since the last build)
 # ----------------------------------------------------------------------------
+# The stamp stores a fingerprint of the app's source files, so replacing
+# files with a newer version automatically triggers a rebuild on next start.
 BUILD_STAMP="$TOOLS_DIR/build.stamp"
-if [ -f "$BUILD_STAMP" ] \
+SRC_HASH="$( (find artifacts lib -type d \( -name node_modules -o -name dist -o -name storage -o -name ".local-tools" \) -prune -o -type f \( -name "*.ts" -o -name "*.tsx" -o -name "*.css" -o -name "*.html" -o -name "*.json" -o -name "*.py" -o -name "*.mjs" \) -print 2>/dev/null | LC_ALL=C sort | xargs shasum -a 256 2>/dev/null; ) | shasum -a 256 | cut -d' ' -f1)"
+if [ -f "$BUILD_STAMP" ] && [ "$(cat "$BUILD_STAMP" 2>/dev/null)" = "$SRC_HASH" ] \
   && [ -f artifacts/api-server/dist/index.mjs ] \
   && [ -f artifacts/finetune-studio/dist/public/index.html ]; then
   info "App already built — skipping."
 else
-  say "🔨  Building the app (first run only)..."
+  say "🔨  Building the app (takes a minute the first time or after an update)..."
   NODE_ENV=production pnpm --filter @workspace/api-server run build >>"$LOG_FILE" 2>&1 \
     || fail "Building the server failed."
   NODE_ENV=production BASE_PATH=/ pnpm --filter @workspace/finetune-studio run build >>"$LOG_FILE" 2>&1 \
     || fail "Building the interface failed."
-  touch "$BUILD_STAMP"
+  printf "%s" "$SRC_HASH" > "$BUILD_STAMP"
 fi
 
 # ----------------------------------------------------------------------------

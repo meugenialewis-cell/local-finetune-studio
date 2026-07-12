@@ -77,6 +77,21 @@ want real on-device training. You can always skip it and install later.
 Just open **Start Fine-Tuning Studio.command** again (double-click works from
 now on). It skips the setup and starts in a few seconds.
 
+## Updating to a new version
+
+Your models, datasets, and training runs are stored inside the app folder, in
+`artifacts` → `api-server` → `storage`. To update without losing them:
+
+1. Download and unzip the newest version (same as Step 1 above).
+2. In your **old** app folder, open `artifacts` → `api-server` and drag the
+   **storage** folder to your Desktop.
+3. In the **new** app folder, open `artifacts` → `api-server` and drag the
+   **storage** folder from your Desktop into it (replace the empty one if
+   asked).
+4. Double-click **Start Fine-Tuning Studio.command** in the new folder. The
+   first start after an update takes a minute while it rebuilds.
+5. Once everything works, you can delete the old folder.
+
 ---
 
 ## Troubleshooting

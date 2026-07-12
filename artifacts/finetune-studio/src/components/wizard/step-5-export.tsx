@@ -128,8 +128,8 @@ export function Step5Export() {
           </p>
           <ul className="text-xs space-y-2 text-muted-foreground">
             <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Single file deployment</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Highly optimized for Apple Silicon</li>
-            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Int4 quantization applied</li>
+            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Works with LM Studio, Jan, and Ollama</li>
+            <li className="flex items-center gap-2"><ArrowRight className="w-3 h-3 text-primary" /> Full-quality (f16) weights</li>
           </ul>
           {!ggufAvailable && (
             <p className="mt-4 text-xs text-amber-600 dark:text-amber-400">Not available for this model's architecture.</p>
@@ -198,6 +198,14 @@ export function Step5Export() {
               <Button size="lg" className="w-full" onClick={handleExport}>
                 Compile & Export as {format.toUpperCase()}
               </Button>
+            )}
+
+            {!isExporting && !exportJob.isError && job.error && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4 text-left">
+                <p className="text-sm font-medium text-destructive mb-1">The last export didn't finish</p>
+                <p className="text-sm text-muted-foreground leading-relaxed">{job.error}</p>
+                <p className="text-xs text-muted-foreground mt-2">You can try again — your training results are safe.</p>
+              </div>
             )}
 
             {exportJob.isError && !isExporting && (
