@@ -1,5 +1,6 @@
 import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
+import { logger } from "./logger";
 
 /**
  * A block of document content preserving the document's own structure.
@@ -116,6 +117,7 @@ async function extractPdf(buffer: Buffer): Promise<ExtractionResult> {
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    logger.error({ err }, "PDF extraction failed");
     if (/password/i.test(message)) {
       return { blocks: [], warnings: [], error: "This PDF is password-protected. Remove the password and try again." };
     }

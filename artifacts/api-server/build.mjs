@@ -29,6 +29,9 @@ async function buildAll() {
     // - use path traversal to read files (e.g. @google-cloud/secret-manager loads sibling .proto files)
     external: [
       "*.node",
+      // pdf-parse dynamically imports pdf.js's worker file relative to itself,
+      // which breaks when bundled — load it from node_modules instead.
+      "pdf-parse",
       "sharp",
       "better-sqlite3",
       "sqlite3",

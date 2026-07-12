@@ -5,3 +5,4 @@
 - [SSE proxy silent drop](sse-proxy-silent-drop.md) — outer Replit proxy never errors dead SSE streams; keep server ping heartbeat + client stall watchdog paired.
 - [E2E outage testing](e2e-outage-testing.md) — freeze with SIGSTOP/SIGCONT (never kill), sync via server-side connect log, run orchestrator + test concurrently in one notebook call.
 - [GitHub push workflow](github-push-workflow.md) — git commit is blocked mid-task; push committed history via connector token, commit working tree via GitHub Data API; SHA-divergence reconciliation recipe inside.
+- [pdf-parse esbuild bundling](pdf-parse-bundling.md) — never bundle pdf-parse; externalize it in build.mjs (pdf.js worker import + DOMMatrix polyfill both break when bundled).

@@ -28,7 +28,9 @@ app.use(
   }),
 );
 app.use(cors());
-app.use(express.json());
+// Converted documents can produce large row payloads (POST /datasets/from-rows),
+// so allow well beyond the 100kb default.
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 app.use("/api", router);
