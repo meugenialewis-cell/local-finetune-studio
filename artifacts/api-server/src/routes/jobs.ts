@@ -273,9 +273,12 @@ function runRealTraining(
           job.logs.push(`[${new Date().toLocaleTimeString()}] Training cancelled`);
         } else {
           job.status = "failed";
-          job.error = (event.message as string) ?? "Training failed on your Mac.";
+          const message = (event.message as string) || "Training failed on your Mac.";
+          // First reported error wins — a later, more generic event must not
+          // overwrite the script's specific explanation.
+          job.error = job.error ?? message;
           job.statusMessage = "Training failed";
-          job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
+          job.logs.push(`[${new Date().toLocaleTimeString()}] ${message}`);
         }
         emitJobUpdate(job);
       }
@@ -425,9 +428,12 @@ function runRealExport(job: JobState, modelDir: string, adapterDir: string, form
         emitJobUpdate(job);
       } else if (event.type === "error") {
         job.status = "completed";
-        job.error = (event.message as string) || "Export failed on your Mac.";
+        const message = (event.message as string) || "Export failed on your Mac.";
+        // First reported error wins — a later, more generic event must not
+        // overwrite the script's specific explanation.
+        job.error = job.error ?? message;
         job.statusMessage = "Export failed — you can try again";
-        job.logs.push(`[${new Date().toLocaleTimeString()}] ${job.error}`);
+        job.logs.push(`[${new Date().toLocaleTimeString()}] ${message}`);
         emitJobUpdate(job);
       }
     },
