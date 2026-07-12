@@ -1,10 +1,19 @@
 # Install these on your Mac (not in this cloud workspace) to enable real
 # local fine-tuning with Apple's MLX framework:
 #
-#   pip install mlx-lm huggingface_hub
+#   pip install mlx-lm huggingface_hub "gguf==0.18.0" torch sentencepiece
 #
 # mlx-lm only installs on Apple Silicon Macs (macOS + M-series chip).
 # These scripts fall back to a simulation mode automatically when mlx-lm
 # is not available, so the app remains fully usable for prototyping here.
+#
+# gguf, torch, and sentencepiece are needed by the GGUF export step
+# (scripts/vendor/convert_hf_to_gguf.py). gguf is pinned to 0.18.0 because
+# it is the newest release that still supports Python 3.9 (the macOS system
+# Python), and the vendored converter is taken from the matching llama.cpp
+# commit (8387ffb28d34).
 mlx-lm
 huggingface_hub
+gguf==0.18.0
+torch
+sentencepiece

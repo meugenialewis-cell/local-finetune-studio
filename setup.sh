@@ -151,26 +151,41 @@ fi
 # ----------------------------------------------------------------------------
 if [ "$(uname -s)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
   if command -v python3 >/dev/null 2>&1; then
+    # gguf is pinned to 0.18.0 (newest release that still supports the
+    # macOS system Python 3.9); torch + sentencepiece are needed by the
+    # GGUF export step. Keep in sync with scripts/requirements.txt.
+    MLX_PACKAGES="mlx-lm huggingface_hub gguf==0.18.0 torch sentencepiece"
     if ! python3 -c "import mlx_lm" >/dev/null 2>&1; then
       say "🍏  Optional: real on-device training"
       info "Your Mac has Apple Silicon, so it can run REAL model downloads and"
       info "training with Apple's MLX engine. Without it, the app still works"
       info "but simulates training instead."
-      printf "\n   Install the MLX training engine now? It's about 500 MB. [y/N] "
+      printf "\n   Install the MLX training engine now? It's about 600 MB. [y/N] "
       REPLY=""
       read -r -t 60 REPLY 2>/dev/null || true
       if [ "$REPLY" = "y" ] || [ "$REPLY" = "Y" ]; then
         say "⬇️   Installing MLX (this can take a few minutes)..."
-        if python3 -m pip install --user mlx-lm huggingface_hub >>"$LOG_FILE" 2>&1; then
+        if python3 -m pip install --user $MLX_PACKAGES >>"$LOG_FILE" 2>&1; then
           info "MLX installed. Training will run for real on this Mac."
         else
           info "MLX installation didn't finish — the app will run in simulation"
           info "mode. You can try again later with:"
-          info "   python3 -m pip install --user mlx-lm huggingface_hub"
+          info "   python3 -m pip install --user $MLX_PACKAGES"
         fi
       else
         info "Skipped. You can install it any time with:"
-        info "   python3 -m pip install --user mlx-lm huggingface_hub"
+        info "   python3 -m pip install --user $MLX_PACKAGES"
+      fi
+    elif ! python3 -c "import gguf, torch, sentencepiece" >/dev/null 2>&1; then
+      # MLX is already installed, but the export tools (used to create GGUF
+      # files for LM Studio / Ollama) are new — add them automatically.
+      say "⬇️   Adding the model export tools (about 100 MB, one time)..."
+      if python3 -m pip install --user gguf==0.18.0 torch sentencepiece >>"$LOG_FILE" 2>&1; then
+        info "Export tools installed. GGUF export is ready."
+      else
+        info "Couldn't install the export tools — exporting as GGUF may not"
+        info "work until they are installed. You can try again later with:"
+        info "   python3 -m pip install --user gguf==0.18.0 torch sentencepiece"
       fi
     fi
   else

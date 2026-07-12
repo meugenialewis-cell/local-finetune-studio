@@ -14,10 +14,12 @@ export interface CatalogModel {
   memoryGuidance: string;
   architecture: ModelArchitecture;
   fineTuneSupport: FineTuneSupport;
-  // mlx_lm.fuse --export-gguf only supports llama/mistral/mixtral-family
-  // transformers, so other families keep only the Ollama Modelfile flow and
-  // fast-weights architectures ship with an empty list until upstream
-  // support lands.
+  // GGUF export fuses with mlx_lm.fuse and then converts with the vendored
+  // llama.cpp converter (scripts/vendor/convert_hf_to_gguf.py). We have
+  // verified the llama/mistral/mixtral families end to end; other families
+  // keep only the Ollama Modelfile flow and fast-weights architectures ship
+  // with an empty list until they are verified. Keep in sync with
+  // GGUF_MODEL_TYPES in scripts/export_model.py.
   exportFormats: ExportFormat[];
   repoId: string;
 }
