@@ -5,6 +5,7 @@ import { Clock, Sliders, Play, BrainCircuit, AlertCircle } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { setLastUsedPresetId } from "@/lib/last-preset";
 
 export function Step3Preset() {
   const { presetId, setPresetId, setCurrentStep, modelId, datasetId, jobName, setJobName, setJobId } = useWizard();
@@ -26,6 +27,7 @@ export function Step3Preset() {
       }
     }, {
       onSuccess: (data) => {
+        setLastUsedPresetId(presetId);
         setJobId(data.id);
         setCurrentStep(4);
       }

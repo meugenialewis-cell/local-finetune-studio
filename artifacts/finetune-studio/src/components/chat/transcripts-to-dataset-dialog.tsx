@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import {
   getChatSession,
   useCreateDatasetFromTranscripts,
@@ -7,7 +8,7 @@ import {
 import type { ChatSession, ChatMessage } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Brain, Loader2 } from "lucide-react";
+import { Brain, CheckCircle2, Loader2, Play } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -61,14 +62,21 @@ export function TranscriptsToDatasetDialog({
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const createDataset = useCreateDatasetFromTranscripts();
+  const [, setLocation] = useLocation();
 
-  const [step, setStep] = useState<"select" | "curate">("select");
+  const [step, setStep] = useState<"select" | "curate" | "created">("select");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [details, setDetails] = useState<ChatSession[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [discarded, setDiscarded] = useState<Set<string>>(new Set());
   const [name, setName] = useState("");
   const [memoryFraming, setMemoryFraming] = useState(true);
+  const [created, setCreated] = useState<{
+    id: string;
+    name: string;
+    rowCount: number;
+    modelId: string | null;
+  } | null>(null);
 
   const reset = () => {
     setStep("select");
@@ -77,6 +85,7 @@ export function TranscriptsToDatasetDialog({
     setDiscarded(new Set());
     setName("");
     setMemoryFraming(true);
+    setCreated(null);
   };
 
   const handleOpenChange = (next: boolean) => {
@@ -145,11 +154,13 @@ export function TranscriptsToDatasetDialog({
       {
         onSuccess: (data) => {
           queryClient.invalidateQueries({ queryKey: getListDatasetsQueryKey() });
-          toast({
-            title: "Dataset created",
-            description: `"${data.name}" (${data.rowCount} examples) is now available in the training wizard.`,
+          setCreated({
+            id: data.id,
+            name: data.name,
+            rowCount: data.rowCount,
+            modelId: details[0]?.modelId ?? null,
           });
-          handleOpenChange(false);
+          setStep("created");
         },
         onError: () => {
           toast({
@@ -162,10 +173,49 @@ export function TranscriptsToDatasetDialog({
     );
   };
 
+  const handleStartTraining = () => {
+    if (!created) return;
+    const params = new URLSearchParams();
+    if (created.modelId) params.set("model", created.modelId);
+    params.set("dataset", created.id);
+    handleOpenChange(false);
+    setLocation(`/?${params.toString()}`);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-        {step === "select" ? (
+        {step === "created" && created ? (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                Dataset Created
+              </DialogTitle>
+              <DialogDescription>
+                "{created.name}" is ready with {created.rowCount} curated{" "}
+                {created.rowCount === 1 ? "memory" : "memories"}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-2 text-sm text-muted-foreground leading-relaxed">
+              You can start a training run right now — the wizard will open with the base model and
+              this dataset already selected, and you can still adjust anything before launching.
+            </div>
+            <DialogFooter>
+              <Button
+                variant="ghost"
+                onClick={() => handleOpenChange(false)}
+                data-testid="button-created-done"
+              >
+                Done
+              </Button>
+              <Button onClick={handleStartTraining} data-testid="button-start-training-with-dataset">
+                <Play className="w-4 h-4 mr-2" />
+                Start training with this dataset
+              </Button>
+            </DialogFooter>
+          </>
+        ) : step === "select" ? (
           <>
             <DialogHeader>
               <DialogTitle>Turn Conversations into Training Data</DialogTitle>

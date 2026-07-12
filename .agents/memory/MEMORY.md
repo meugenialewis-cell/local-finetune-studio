@@ -1,4 +1,4 @@
 - [Express dotfile storage dirs](express-dotfile-storage.md) — never store files served via res.download/sendFile under a dot-prefixed dir like `.data`; Express's `send` blocks dotfile path segments (404).
 - [Real vs simulated backend execution](real-vs-simulated-execution.md) — gate real python/MLX subprocess spawning on a runtime hardware check, not just presence of a "simulated" flag; keep the simulate.ts path as a genuine fallback.
 - [Model catalog sizing](model-catalog-sizing.md) — mlx-community 4-bit repos sized for 128GB Mac; Kimi K2 won't fit; verified hybrid repos + gated/missing ones listed; verify repo id resolves before adding.
-- [E2E tests vs in-memory state](e2e-test-state-resets.md) — server registries reset on restart; test plans must self-provision state via [API] steps, not shell pre-seeding.
+- [E2E tests and server state](e2e-test-state-resets.md) — test plans must self-provision state via [API] steps; full dev-state reset needs rm state files + SIGKILL (SIGTERM flush recreates them).

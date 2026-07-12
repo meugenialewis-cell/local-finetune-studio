@@ -1,5 +1,11 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
+export interface WizardInitialSelection {
+  modelId?: string | null;
+  datasetId?: string | null;
+  presetId?: string | null;
+}
+
 interface WizardState {
   currentStep: number;
   setCurrentStep: (step: number) => void;
@@ -17,11 +23,17 @@ interface WizardState {
 
 const WizardContext = createContext<WizardState | undefined>(undefined);
 
-export function WizardProvider({ children }: { children: ReactNode }) {
+export function WizardProvider({
+  children,
+  initial,
+}: {
+  children: ReactNode;
+  initial?: WizardInitialSelection;
+}) {
   const [currentStep, setCurrentStep] = useState(1);
-  const [modelId, setModelId] = useState<string | null>(null);
-  const [datasetId, setDatasetId] = useState<string | null>(null);
-  const [presetId, setPresetId] = useState<string | null>(null);
+  const [modelId, setModelId] = useState<string | null>(initial?.modelId ?? null);
+  const [datasetId, setDatasetId] = useState<string | null>(initial?.datasetId ?? null);
+  const [presetId, setPresetId] = useState<string | null>(initial?.presetId ?? null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobName, setJobName] = useState<string>("");
 

@@ -1,9 +1,54 @@
-import { WizardProvider, useWizard } from "../components/wizard/wizard-context";
+import { useEffect, useMemo, useRef } from "react";
+import { useSearch } from "wouter";
+import { useListModels, useListDatasets, useListPresets } from "@workspace/api-client-react";
+import { WizardProvider, useWizard, WizardInitialSelection } from "../components/wizard/wizard-context";
+import { getLastUsedPresetId } from "../lib/last-preset";
 import { Step1Model } from "../components/wizard/step-1-model";
 import { Step2Dataset } from "../components/wizard/step-2-dataset";
 import { Step3Preset } from "../components/wizard/step-3-preset";
 import { Step4Training } from "../components/wizard/step-4-training";
 import { Step5Export } from "../components/wizard/step-5-export";
+
+/**
+ * When the wizard is opened with preselected choices (e.g. "Start training with
+ * this dataset" after creating a memories dataset), verify those choices against
+ * the live model/dataset/preset lists once they load, drop anything invalid, and
+ * jump the user to the furthest step their valid selections allow.
+ */
+function PrefillReconciler() {
+  const { modelId, setModelId, datasetId, setDatasetId, presetId, setPresetId, setCurrentStep } =
+    useWizard();
+  const { data: models, isFetching: modelsFetching } = useListModels();
+  const { data: datasets, isFetching: datasetsFetching } = useListDatasets();
+  const { data: presets, isFetching: presetsFetching } = useListPresets();
+  const reconciled = useRef(false);
+
+  useEffect(() => {
+    // Wait for *fresh* lists — cached data from an earlier visit may predate
+    // the just-created dataset and would wrongly drop the prefill.
+    if (
+      reconciled.current ||
+      !models || modelsFetching ||
+      !datasets || datasetsFetching ||
+      !presets || presetsFetching
+    )
+      return;
+    reconciled.current = true;
+
+    const modelOk = !!modelId && models.some((m) => m.id === modelId && m.status === "ready");
+    const datasetOk =
+      !!datasetId && datasets.some((d) => d.id === datasetId && d.status === "ready");
+    const presetOk = !!presetId && presets.some((p) => p.id === presetId);
+
+    if (!modelOk) setModelId(null);
+    if (!datasetOk) setDatasetId(null);
+    if (!presetOk) setPresetId(null);
+
+    setCurrentStep(modelOk ? (datasetOk ? 3 : 2) : 1);
+  }, [models, datasets, presets, modelsFetching, datasetsFetching, presetsFetching, modelId, datasetId, presetId, setModelId, setDatasetId, setPresetId, setCurrentStep]);
+
+  return null;
+}
 
 function WizardContent() {
   const { currentStep } = useWizard();
@@ -72,8 +117,25 @@ function WizardContent() {
 }
 
 export default function Wizard() {
+  const search = useSearch();
+
+  const initial = useMemo<WizardInitialSelection | null>(() => {
+    const params = new URLSearchParams(search);
+    const modelId = params.get("model");
+    const datasetId = params.get("dataset");
+    if (!modelId && !datasetId) return null;
+    return {
+      modelId,
+      datasetId,
+      presetId: getLastUsedPresetId(),
+    };
+    // Read the URL once on mount — the wizard owns its state afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <WizardProvider>
+    <WizardProvider initial={initial ?? undefined}>
+      {initial && <PrefillReconciler />}
       <WizardContent />
     </WizardProvider>
   );
