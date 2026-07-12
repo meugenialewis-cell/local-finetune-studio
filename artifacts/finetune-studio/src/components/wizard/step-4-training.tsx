@@ -10,8 +10,9 @@ export function Step4Training() {
   const { data: jobInitial, isLoading } = useGetJob(jobId || "", {
     query: { enabled: !!jobId, queryKey: getGetJobQueryKey(jobId || "") },
   });
-  const liveJob = useJobEventsSSE(jobId || undefined);
+  const { data: liveJob, connectionStatus } = useJobEventsSSE(jobId || undefined);
   const cancelJob = useCancelJob();
+  const reconnecting = connectionStatus === "reconnecting";
 
   // Merge live data over initial data
   const job = { ...jobInitial, ...liveJob };
@@ -33,11 +34,15 @@ export function Step4Training() {
       </div>
 
       <div className="bg-card border border-card-border rounded-xl p-8 mb-8 relative overflow-hidden">
-        {job.simulated && (
+        {reconnecting ? (
+          <div className="absolute top-0 inset-x-0 bg-yellow-500/10 text-yellow-600 dark:text-yellow-500 text-xs font-semibold py-1 text-center tracking-widest uppercase" data-testid="banner-reconnecting">
+            Connection lost — reconnecting…
+          </div>
+        ) : job.simulated ? (
           <div className="absolute top-0 inset-x-0 bg-yellow-500/10 text-yellow-500 text-xs font-semibold py-1 text-center tracking-widest uppercase">
             Simulation Mode Active
           </div>
-        )}
+        ) : null}
         
         <div className="flex flex-col md:flex-row gap-8 items-center md:items-start pt-4">
           <div className="shrink-0 relative">
@@ -75,7 +80,9 @@ export function Step4Training() {
                 `}>
                   {job.status}
                 </span>
-                <span className="text-muted-foreground">• {job.statusMessage}</span>
+                <span className="text-muted-foreground">
+                  • {reconnecting ? "Reconnecting to the live progress stream…" : job.statusMessage}
+                </span>
               </div>
             </div>
 

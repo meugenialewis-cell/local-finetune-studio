@@ -23,7 +23,8 @@ export function Step1Model() {
   const [archFilter, setArchFilter] = useState<ArchFilter>("all");
   const [showExplainer, setShowExplainer] = useState(false);
 
-  const selectedModelStream = useModelDownloadSSE(modelId || undefined);
+  const { data: selectedModelStream, connectionStatus } = useModelDownloadSSE(modelId || undefined);
+  const reconnecting = connectionStatus === "reconnecting";
   const lastSyncedStatus = useRef<string | undefined>(undefined);
 
   // Keep the models list cache in sync with the live SSE stream so the
@@ -169,8 +170,8 @@ export function Step1Model() {
                 <div className="shrink-0 flex items-center gap-3">
                   {isDownloading ? (
                     <div className="flex flex-col items-end gap-1 w-32">
-                      <div className="flex justify-between text-xs w-full text-primary font-medium">
-                        <span>Downloading</span>
+                      <div className={`flex justify-between text-xs w-full font-medium ${isSelected && reconnecting ? "text-yellow-600 dark:text-yellow-500" : "text-primary"}`}>
+                        <span>{isSelected && reconnecting ? "Reconnecting…" : "Downloading"}</span>
                         <span>{Math.round(liveData.downloadProgress || 0)}%</span>
                       </div>
                       <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">

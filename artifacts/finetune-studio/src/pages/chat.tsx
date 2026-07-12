@@ -311,16 +311,19 @@ function NewChatPanel({
 
 function ChatView({ sessionId, onChanged }: { sessionId: string; onChanged: () => void }) {
   const queryClient = useQueryClient();
-  const live = useChatSessionSSE(sessionId);
+  const { data: live, connectionStatus } = useChatSessionSSE(sessionId);
   const { data: fetched } = useGetChatSession(sessionId);
   const session: Partial<ChatSession> = live.id === sessionId ? live : (fetched ?? {});
+  const reconnecting = connectionStatus === "reconnecting";
 
   const sendMessage = useSendChatMessage();
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const messages = session.messages ?? [];
-  const generating = session.generating ?? false;
+  // While reconnecting we can't trust the last streamed state — don't show a
+  // frozen "typing" indicator; the reconnect banner tells the real story.
+  const generating = (session.generating ?? false) && !reconnecting;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -362,6 +365,15 @@ function ChatView({ sessionId, onChanged }: { sessionId: string; onChanged: () =
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {reconnecting && (
+            <span
+              className="text-[10px] font-semibold uppercase tracking-wider text-yellow-600 dark:text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded flex items-center gap-1.5"
+              data-testid="badge-reconnecting"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-pulse" />
+              Reconnecting…
+            </span>
+          )}
           {session.simulated && (
             <span className="text-[10px] font-semibold uppercase tracking-wider text-yellow-600 dark:text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-2 py-1 rounded" data-testid="badge-simulated">
               Simulated
